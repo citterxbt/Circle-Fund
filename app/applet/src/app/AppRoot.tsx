@@ -19,7 +19,7 @@ const queryClient = new QueryClient();
 const authenticationAdapter = createAuthenticationAdapter({
   getNonce: async () => {
     try {
-      const response = await fetch('/api/auth/nonce');
+      const response = await fetch('/api/auth/nonce', { credentials: 'login' === 'login' ? 'same-origin' : 'include' });
       if (!response.ok) {
           throw new Error('Failed to fetch nonce. Status: ' + response.status);
       }
@@ -38,52 +38,77 @@ const authenticationAdapter = createAuthenticationAdapter({
     }
   },
   createMessage: ({ nonce, address, chainId }) => {
-    return createSiweMessage({
-      domain: window.location.host,
-      address,
-      statement: 'Sign in with Ethereum to the app.',
-      uri: window.location.origin,
-      version: '1',
-      chainId,
-      nonce,
-    });
+    try {
+      return createSiweMessage({
+        domain: window.location.host,
+        address,
+        statement: 'Sign in with Ethereum to the app.',
+        uri: window.location.origin,
+        version: '1',
+        chainId,
+        nonce,
+      });
+    } catch (e) {
+      console.error('Error creating SIWE message:', e);
+      throw e;
+    }
   },
   getMessageBody: ({ message }) => message,
   verify: async ({ message, signature }) => {
-    const response = await fetch('/api/auth/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, signature }),
-    });
-    
-    if (response.ok) {
-       const { token } = await response.json();
-       localStorage.setItem('supabase_token', token);
-       window.dispatchEvent(new Event('auth_change'));
-       return true;
+    try {
+      const response = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, signature }),
+        credentials: 'login' === 'login' ? 'same-origin' : 'include',
+      });
+      
+      if (response.ok) {
+         const { token } = await response.json();
+         localStorage.setItem('supabase_token', token);
+         window.dispatchEvent(new Event('auth_change'));
+         return true;
+      } else {
+         const err = await response.json().catch(() => ({}));
+         console.error('Verify error:', err);
+      }
+      return false;
+    } catch (e) {
+      console.error('Error verifying:', e);
+      return false;
     }
-    return false;
   },
   signOut: async () => {
-    await fetch('/api/auth/logout');
-    localStorage.removeItem('supabase_token');
-    window.dispatchEvent(new Event('auth_change'));
+    try {
+      await fetch('/api/auth/logout', { credentials: 'login' === 'login' ? 'same-origin' : 'include' });
+      localStorage.removeItem('supabase_token');
+      window.dispatchEvent(new Event('auth_change'));
+    } catch (e) {
+      console.error('Error signing out:', e);
+    }
   },
 });
 
 export default function AppRoot() {
-  const [authStatus, setAuthStatus] = React.useState<'loading' | 'unauthenticated' | 'authenticated'>(() => {
-    return localStorage.getItem('supabase_token') ? 'authenticated' : 'unauthenticated';
-  });
+  const [mounted, setMounted] = React.useState(false);
+  const [authStatus, setAuthStatus] = React.useState<'loading' | 'unauthenticated' | 'authenticated'>('loading');
 
   React.useEffect(() => {
+    setMounted(true);
+    const token = localStorage.getItem('supabase_token');
+    setAuthStatus(token ? 'authenticated' : 'unauthenticated');
+    
     const checkAuth = () => {
-      const token = localStorage.getItem('supabase_token');
-      setAuthStatus(token ? 'authenticated' : 'unauthenticated');
+      const currentToken = localStorage.getItem('supabase_token');
+      setAuthStatus(currentToken ? 'authenticated' : 'unauthenticated');
     };
     window.addEventListener('auth_change', checkAuth);
     return () => window.removeEventListener('auth_change', checkAuth);
   }, []);
+
+  if (!mounted) {
+    return null; // Prevents generic React 18/19 Hydration mismatch and StrictMode bugs
+  }
 
   return (
     <WagmiProvider config={config}>

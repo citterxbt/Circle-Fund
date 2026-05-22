@@ -1,7 +1,7 @@
 
 import express from "express";
 import helmet from "helmet";
-import apiRouter from "../api-router";
+import apiRouter from "./router";
 
 const app = express();
 app.set("trust proxy", 1);

@@ -1,4 +1,3 @@
-
 import { Router } from "express";
 import { SiweMessage } from "siwe";
 import jwt from "jsonwebtoken";

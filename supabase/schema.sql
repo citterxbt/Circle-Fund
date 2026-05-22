@@ -7,9 +7,28 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE proposals (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     title TEXT NOT NULL,
+    one_line_summary VARCHAR(140) NOT NULL,
+    category TEXT NOT NULL,
+    project_url TEXT,
+    twitter_url TEXT,
+    github_url TEXT,
     description TEXT NOT NULL,
+    problem_statement TEXT NOT NULL,
+    proposed_solution TEXT NOT NULL,
+    technical_architecture TEXT,
+    team_members JSONB NOT NULL DEFAULT '[]'::jsonb,
+    previous_work TEXT,
+    relevant_experience TEXT NOT NULL,
     requested_amount NUMERIC NOT NULL,
-    document_url TEXT,
+    budget_breakdown TEXT NOT NULL,
+    budget_justification TEXT NOT NULL,
+    timeline TEXT NOT NULL,
+    risk_mitigation TEXT NOT NULL,
+    expected_impact TEXT NOT NULL,
+    success_metrics JSONB NOT NULL DEFAULT '[]'::jsonb,
+    long_term_vision TEXT,
+    agree_to_terms BOOLEAN NOT NULL DEFAULT false,
+    documents JSONB DEFAULT '[]'::jsonb,
     status TEXT NOT NULL DEFAULT 'pending', -- pending, approved, rejected
     author_wallet TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -21,6 +40,8 @@ CREATE TABLE milestones (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     proposal_id UUID NOT NULL REFERENCES proposals(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    metrics TEXT NOT NULL,
     amount NUMERIC NOT NULL,
     deadline TIMESTAMPTZ NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending', -- pending, report_submitted, approved, rejected, claimed
@@ -60,6 +81,12 @@ CREATE TABLE comments (
 -- PROFILES (Simulate Claimed Amount)
 CREATE TABLE profiles (
     wallet_address TEXT PRIMARY KEY,
+    username VARCHAR(12),
+    bio TEXT,
+    avatar_url TEXT,
+    twitter_url TEXT,
+    telegram_url TEXT,
+    github_url TEXT,
     total_claimed NUMERIC DEFAULT 0,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -128,11 +155,12 @@ CREATE POLICY "Public read comments" ON comments FOR SELECT USING (true);
 CREATE POLICY "Wallet owners insert comments" ON comments FOR INSERT TO authenticated
   WITH CHECK (LOWER(author_wallet) = LOWER(public.get_jwt_wallet()));
 
--- Profiles (Claim simulation)
+-- Profiles (Claim simulation & user data)
 CREATE POLICY "Public read profiles" ON profiles FOR SELECT USING (true);
 CREATE POLICY "Wallet owners insert profiles" ON profiles FOR INSERT TO authenticated
   WITH CHECK (LOWER(wallet_address) = LOWER(public.get_jwt_wallet()));
--- Removed Wallet owners update profiles policy to prevent artificial claim inflation
+CREATE POLICY "Wallet owners update profiles" ON profiles FOR UPDATE TO authenticated
+  USING (LOWER(wallet_address) = LOWER(public.get_jwt_wallet()));
 
 -- Security Triggers
 
@@ -209,3 +237,29 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER on_milestone_claim_update_profile
 AFTER UPDATE ON milestones
 FOR EACH ROW EXECUTE FUNCTION handle_milestone_claim();
+
+-- Storage for Avatars
+INSERT INTO storage.buckets (id, name, public) VALUES ('avatars', 'avatars', true) ON CONFLICT DO NOTHING;
+
+CREATE POLICY "Avatar images are publicly accessible" ON storage.objects FOR SELECT USING ( bucket_id = 'avatars' );
+CREATE POLICY "Wallet owners can upload avatars" ON storage.objects FOR INSERT TO authenticated WITH CHECK ( bucket_id = 'avatars' );
+CREATE POLICY "Wallet owners can update avatars" ON storage.objects FOR UPDATE TO authenticated USING ( bucket_id = 'avatars' );
+
+-- Prevent users from tampering with critical profile fields
+CREATE OR REPLACE FUNCTION secure_profile_update() RETURNS trigger AS $$
+BEGIN
+  IF NOT public.is_jwt_admin() THEN
+    IF NEW.wallet_address != OLD.wallet_address THEN
+      RAISE EXCEPTION 'Cannot modify wallet address';
+    END IF;
+    IF NEW.total_claimed != OLD.total_claimed THEN
+      RAISE EXCEPTION 'Cannot manually modify total claimed amount';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER enforce_profile_update
+BEFORE UPDATE ON profiles
+FOR EACH ROW EXECUTE FUNCTION secure_profile_update();

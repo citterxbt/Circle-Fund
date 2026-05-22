@@ -88,7 +88,7 @@ export default function AppRoot() {
           adapter={authenticationAdapter} 
           status={authStatus}
         >
-          <RainbowKitProvider theme={darkTheme({ accentColor: '#2563eb' })}>
+          <RainbowKitProvider theme={darkTheme({ accentColor: '#ffffff', accentColorForeground: '#000000' })}>
             <Routes>
               <Route path="/" element={<Layout />}>
                 <Route index element={<Dashboard />} />

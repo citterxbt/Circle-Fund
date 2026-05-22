@@ -3,10 +3,12 @@ import { useAccount } from 'wagmi';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
 import { StatusBadge } from './Dashboard';
+import { Filter } from 'lucide-react';
 
 export function MilestoneTracker() {
   const { address } = useAccount();
   const [milestones, setMilestones] = useState<any[]>([]);
+  const [filter, setFilter] = useState('all'); // all, pending, report_submitted, approved, claimed
   const [selectedMilestone, setSelectedMilestone] = useState<any>(null);
   const [reportContent, setReportContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -14,18 +16,26 @@ export function MilestoneTracker() {
   useEffect(() => {
     if (!address) return;
     loadMilestones();
-  }, [address]);
+  }, [address, filter]);
 
   async function loadMilestones() {
     const { data: props } = await supabase.from('proposals').select('id').eq('author_wallet', address?.toLowerCase());
     if (props && props.length > 0) {
       const pids = props.map(p => p.id);
-      const { data: ms } = await supabase
+      let query = supabase
         .from('milestones')
         .select(`*, proposals(title)`)
         .in('proposal_id', pids)
         .order('deadline', { ascending: true });
+        
+      if (filter !== 'all') {
+        query = query.eq('status', filter);
+      }
+        
+      const { data: ms } = await query;
       if (ms) setMilestones(ms);
+    } else {
+      setMilestones([]);
     }
   }
 
@@ -61,20 +71,40 @@ export function MilestoneTracker() {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <h1 className="text-3xl font-display font-bold mb-8">Milestone Tracker</h1>
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-3xl font-display font-bold mb-2">Milestone Tracker</h1>
+          <p className="text-white/60">Track your project milestones and request payouts.</p>
+        </div>
+        
+        <div className="flex items-center gap-2 bg-black/40 border border-white/10 px-3 py-2 rounded-lg">
+          <Filter className="w-4 h-4 text-white/40" />
+          <select 
+            value={filter} 
+            onChange={(e) => setFilter(e.target.value)}
+            className="bg-transparent text-sm text-white/90 outline-none border-none cursor-pointer"
+          >
+            <option value="all" className="bg-[#0A0A0A]">All Milestones</option>
+            <option value="pending" className="bg-[#0A0A0A]">Pending</option>
+            <option value="report_submitted" className="bg-[#0A0A0A]">Under Review</option>
+            <option value="approved" className="bg-[#0A0A0A]">Approved for Claim</option>
+            <option value="claimed" className="bg-[#0A0A0A]">Claimed</option>
+          </select>
+        </div>
+      </div>
 
       <div className="space-y-4">
         {milestones.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 bg-dark-900 border border-dark-800 rounded-xl">
+          <div className="p-8 text-center text-[#A3A3A3] bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors rounded-xl">
             No milestones found for your active proposals.
           </div>
         ) : (
           milestones.map(ms => (
-            <div key={ms.id} className="bg-dark-900 border border-dark-800 p-6 rounded-xl flex items-center justify-between">
+            <div key={ms.id} className="bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors p-6 rounded-xl flex items-center justify-between">
               <div>
-                <div className="text-sm text-primary-400 mb-1">{ms.proposals.title}</div>
-                <h3 className="text-lg font-semibold text-slate-200 mb-2">{ms.title}</h3>
-                <div className="flex items-center gap-6 text-sm text-slate-400">
+                <div className="text-sm text-white/80 mb-1">{ms.proposals.title}</div>
+                <h3 className="text-lg font-semibold text-white/90 mb-2">{ms.title}</h3>
+                <div className="flex items-center gap-6 text-sm text-white/60">
                   <span>Amount: {ms.amount} USDC</span>
                   <span>Deadline: {format(new Date(ms.deadline), 'MMM d, yyyy')}</span>
                   <StatusBadge status={ms.status} />
@@ -82,12 +112,12 @@ export function MilestoneTracker() {
               </div>
               <div>
                 {ms.status === 'pending' && (
-                  <button onClick={() => setSelectedMilestone(ms)} className="px-4 py-2 bg-dark-800 hover:bg-dark-700 text-white rounded-lg text-sm transition-colors border border-dark-700">
+                  <button onClick={() => setSelectedMilestone(ms)} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg text-sm transition-colors border border-white/20">
                     Submit Report
                   </button>
                 )}
                 {ms.status === 'approved' && (
-                  <button onClick={() => claimFunds(ms)} className="px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg text-sm transition-colors border border-primary-500 shadow-[0_0_15px_rgba(37,99,235,0.5)]">
+                  <button onClick={() => claimFunds(ms)} className="px-4 py-2 bg-white text-black hover:bg-white/80 rounded-lg text-sm transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)]">
                     Claim Funds
                   </button>
                 )}
@@ -99,21 +129,21 @@ export function MilestoneTracker() {
 
       {selectedMilestone && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-dark-900 border border-dark-800 p-6 rounded-2xl max-w-lg w-full">
+          <div className="bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors p-6 rounded-2xl max-w-lg w-full">
             <h2 className="text-xl font-bold mb-2">Submit Progress Report</h2>
-            <p className="text-sm text-slate-400 mb-6">For: {selectedMilestone.title}</p>
+            <p className="text-sm text-white/60 mb-6">For: {selectedMilestone.title}</p>
             
             <textarea 
               rows={5} 
               value={reportContent} 
               onChange={e => setReportContent(e.target.value)} 
               placeholder="Detail your progress, include links to commits, docs, etc."
-              className="w-full bg-dark-950 border border-dark-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-primary-500 mb-6"
+              className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-white/30 mb-6"
             />
             
             <div className="flex justify-end gap-3">
-              <button disabled={loading} onClick={() => setSelectedMilestone(null)} className="px-4 py-2 bg-dark-800 hover:bg-dark-700 rounded-lg transition-colors text-sm">Cancel</button>
-              <button disabled={loading || !reportContent.trim()} onClick={submitReport} className="px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg transition-colors text-sm disabled:opacity-50">
+              <button disabled={loading} onClick={() => setSelectedMilestone(null)} className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors text-sm">Cancel</button>
+              <button disabled={loading || !reportContent.trim()} onClick={submitReport} className="px-4 py-2 bg-white text-black hover:bg-gray-200 rounded-lg transition-colors text-sm disabled:opacity-50">
                 {loading ? 'Submitting...' : 'Submit Report'}
               </button>
             </div>

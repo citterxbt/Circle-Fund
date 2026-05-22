@@ -51,7 +51,7 @@ export function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
         <h1 className="text-3xl font-display font-bold mb-4">Welcome to Circle Fund</h1>
-        <p className="text-slate-400 mb-8 max-w-md">Connect your wallet to manage your proposals, track milestones, and claim funding.</p>
+        <p className="text-white/60 mb-8 max-w-md">Connect your wallet to manage your proposals, track milestones, and claim funding.</p>
       </div>
     );
   }
@@ -70,23 +70,23 @@ export function Dashboard() {
         <div>
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary-400" />
+              <FileText className="w-5 h-5 text-white/80" />
               Recent Proposals
             </h2>
           </div>
           {recentProposals.length === 0 ? (
-            <div className="bg-dark-900 border border-dark-800 rounded-xl p-8 text-center text-slate-500">
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors rounded-xl p-8 text-center text-[#A3A3A3]">
               No proposals submitted yet.
             </div>
           ) : (
             <div className="space-y-4">
               {recentProposals.map(p => (
-                <Link to={`/app/proposals/${p.id}`} key={p.id} className="block bg-dark-900 border border-dark-800 p-5 rounded-xl hover:border-primary-500/30 transition-colors">
+                <Link to={`/app/proposals/${p.id}`} key={p.id} className="block bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 p-5 rounded-xl hover:border-white/30 transition-colors">
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold text-slate-200">{p.title}</h3>
+                    <h3 className="font-semibold text-white/90">{p.title}</h3>
                     <StatusBadge status={p.status} />
                   </div>
-                  <div className="text-sm text-slate-400">
+                  <div className="text-sm text-white/60">
                     Requested: {p.requested_amount} USDC
                   </div>
                 </Link>
@@ -101,21 +101,21 @@ export function Dashboard() {
               <Clock className="w-5 h-5 text-amber-400" />
               Upcoming Milestones
             </h2>
-            <Link to="/app/milestones" className="text-sm text-primary-400 hover:text-primary-300 flex items-center gap-1">
+            <Link to="/app/milestones" className="text-sm text-white/80 hover:text-white flex items-center gap-1">
               View all <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
           {upcomingMilestones.length === 0 ? (
-            <div className="bg-dark-900 border border-dark-800 rounded-xl p-8 text-center text-slate-500">
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors rounded-xl p-8 text-center text-[#A3A3A3]">
               No upcoming milestones.
             </div>
           ) : (
             <div className="space-y-4">
               {upcomingMilestones.map(m => (
-                <div key={m.id} className="bg-dark-900 border border-dark-800 p-5 rounded-xl">
-                  <div className="text-xs text-primary-400 mb-1">{m.proposals?.title}</div>
-                  <h3 className="font-semibold text-slate-200 mb-2">{m.title}</h3>
-                  <div className="flex justify-between text-sm text-slate-400">
+                <div key={m.id} className="bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors p-5 rounded-xl">
+                  <div className="text-xs text-white/80 mb-1">{m.proposals?.title}</div>
+                  <h3 className="font-semibold text-white/90 mb-2">{m.title}</h3>
+                  <div className="flex justify-between text-sm text-white/60">
                     <span>{m.amount} USDC</span>
                     <span>Due: {format(new Date(m.deadline), 'MMM d, yyyy')}</span>
                   </div>
@@ -131,9 +131,9 @@ export function Dashboard() {
 
 function StatCard({ title, value }: { title: string, value: number | string }) {
   return (
-    <div className="bg-dark-900 border border-dark-800 p-6 rounded-2xl">
-      <div className="text-sm text-slate-400 mb-2">{title}</div>
-      <div className="text-4xl font-display font-medium text-slate-100">{value}</div>
+    <div className="bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors p-6 rounded-2xl">
+      <div className="text-sm text-white/60 mb-2">{title}</div>
+      <div className="text-4xl font-display font-medium text-white">{value}</div>
     </div>
   );
 }

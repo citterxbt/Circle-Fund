@@ -48,12 +48,12 @@ export function AdminPanel() {
   return (
     <div className="max-w-5xl mx-auto space-y-12">
       <div>
-        <h1 className="text-3xl font-display font-bold mb-8 text-primary-400">Admin Control Panel</h1>
+        <h1 className="text-3xl font-display font-bold mb-8 text-white/80">Admin Control Panel</h1>
         
         <h2 className="text-xl font-bold mb-4">Pending Proposals</h2>
-        <div className="bg-dark-900 border border-dark-800 rounded-2xl overflow-hidden">
+        <div className="bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors rounded-2xl overflow-hidden">
           <table className="w-full text-left text-sm">
-            <thead className="bg-dark-950 border-b border-dark-800 text-slate-400">
+            <thead className="bg-black/20 border-b border-white/10 text-white/60">
               <tr>
                 <th className="p-4 font-medium">Title</th>
                 <th className="p-4 font-medium">Wallet</th>
@@ -62,11 +62,11 @@ export function AdminPanel() {
                 <th className="p-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-dark-800">
+            <tbody className="divide-y divide-white/10">
               {proposals.map(p => (
-                <tr key={p.id} className="hover:bg-dark-800/50">
-                  <td className="p-4 font-medium text-slate-200">{p.title}</td>
-                  <td className="p-4 font-mono text-slate-400 text-xs">{p.author_wallet}</td>
+                <tr key={p.id} className="hover:bg-white/[0.05]">
+                  <td className="p-4 font-medium text-white/90">{p.title}</td>
+                  <td className="p-4 font-mono text-white/60 text-xs">{p.author_wallet}</td>
                   <td className="p-4 text-slate-300">{p.requested_amount} USDC</td>
                   <td className="p-4"><StatusBadge status={p.status} /></td>
                   <td className="p-4 text-right">
@@ -79,7 +79,7 @@ export function AdminPanel() {
                   </td>
                 </tr>
               ))}
-              {proposals.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-slate-500">No proposals found.</td></tr>}
+              {proposals.length === 0 && <tr><td colSpan={5} className="p-4 text-center text-[#A3A3A3]">No proposals found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -89,12 +89,12 @@ export function AdminPanel() {
         <h2 className="text-xl font-bold mb-4">Pending Milestone Reports</h2>
         <div className="space-y-4">
           {reports.map(r => (
-            <div key={r.id} className="bg-dark-900 border border-dark-800 p-6 rounded-xl flex gap-6">
+            <div key={r.id} className="bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors p-6 rounded-xl flex gap-6">
               <div className="flex-1">
-                <div className="text-xs text-primary-400 mb-1">{r.milestones.proposals.title}</div>
+                <div className="text-xs text-white/80 mb-1">{r.milestones.proposals.title}</div>
                 <h3 className="text-lg font-semibold mb-2">{r.milestones.title}</h3>
-                <div className="text-sm text-slate-400 mb-4 whitespace-pre-wrap">{r.content}</div>
-                <div className="text-xs text-slate-500">Submitted: {format(new Date(r.created_at), 'MMM d, yyyy')}</div>
+                <div className="text-sm text-white/60 mb-4 whitespace-pre-wrap">{r.content}</div>
+                <div className="text-xs text-[#A3A3A3]">Submitted: {format(new Date(r.created_at), 'MMM d, yyyy')}</div>
               </div>
               <div className="w-32 flex flex-col gap-2 justify-center">
                 <button onClick={() => updateReport(r, 'approved')} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm text-center">Approve</button>
@@ -102,7 +102,7 @@ export function AdminPanel() {
               </div>
             </div>
           ))}
-          {reports.length === 0 && <div className="p-8 bg-dark-900 border border-dark-800 rounded-xl text-center text-slate-500">No pending reports.</div>}
+          {reports.length === 0 && <div className="p-8 bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors rounded-xl text-center text-[#A3A3A3]">No pending reports.</div>}
         </div>
       </div>
     </div>

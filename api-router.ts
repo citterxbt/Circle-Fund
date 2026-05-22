@@ -1,29 +1,59 @@
 
 import { Router } from "express";
-import { generateNonce, SiweMessage } from "siwe";
+import { SiweMessage } from "siwe";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const router = Router();
 
-// In-memory nonce store (avoids iframe third-party cookie blocking)
-const nonceStore = new Map();
+function generateStatelessNonce(): string {
+  const secret = process.env.SUPABASE_JWT_SECRET || "default_auth_secret_fallback";
+  const now = Math.floor(Date.now() / 1000);
+  const timestampHex = now.toString(16).padStart(8, "0"); // 8 chars hex
+  const randHex = crypto.randomBytes(4).toString("hex"); // 8 chars hex
+  
+  const payload = timestampHex + randHex;
+  const hash = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  const sigHex = hash.slice(0, 16); // 16 chars hex
+  
+  return payload + sigHex; // 32 chars alphanumeric hex string
+}
 
-// Clean up expired nonces periodically (every hour)
-setInterval(() => {
-  const now = Date.now();
-  for (const [nonce, timestamp] of nonceStore.entries()) {
-    if (now - timestamp > 1000 * 60 * 60) {
-      nonceStore.delete(nonce);
-    }
+function verifyStatelessNonce(nonce: string): boolean {
+  if (!nonce || nonce.length !== 32) return false;
+  
+  const secret = process.env.SUPABASE_JWT_SECRET || "default_auth_secret_fallback";
+  const timestampHex = nonce.slice(0, 8);
+  const randHex = nonce.slice(8, 16);
+  const sigHex = nonce.slice(16, 32);
+  
+  // Verify HMAC signature
+  const payload = timestampHex + randHex;
+  const hash = crypto.createHmac("sha256", secret).update(payload).digest("hex");
+  const expectedSigHex = hash.slice(0, 16);
+  
+  if (sigHex !== expectedSigHex) {
+    console.warn("[verifyStatelessNonce] Nonce signature mismatch:", sigHex, "vs expected:", expectedSigHex);
+    return false;
   }
-}, 1000 * 60 * 60);
+  
+  // Verify timestamp is within 15 minutes to allow network delays and clock drift
+  const timestamp = parseInt(timestampHex, 16);
+  const now = Math.floor(Date.now() / 1000);
+  const age = now - timestamp;
+  if (age > 900 || age < -120) { // 15 mins max, 2 min skew
+    console.warn("[verifyStatelessNonce] Nonce expired. Age:", age);
+    return false;
+  }
+  
+  return true;
+}
 
 router.get("/auth/nonce", (req, res) => {
   try {
-    const nonce = generateNonce();
-    nonceStore.set(nonce, Date.now());
+    const nonce = generateStatelessNonce();
     res.json({ nonce });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating nonce:", error);
     res.status(500).json({ error: error.message || "Internal Server Error" });
   }
@@ -34,13 +64,10 @@ router.post("/auth/verify", async (req, res) => {
     const { message, signature } = req.body;
     const siweMessage = new SiweMessage(message);
     
-    // Check if nonce exists and is valid
-    if (!nonceStore.has(siweMessage.nonce)) {
-      return res.status(422).json({ error: "Invalid or expired nonce." });
+    // Verify nonce statelessly
+    if (!verifyStatelessNonce(siweMessage.nonce)) {
+      return res.status(422).json({ error: "Invalid, expired, or tampered SIWE nonce." });
     }
-    
-    // Clean up nonce (single use)
-    nonceStore.delete(siweMessage.nonce);
     
     const { success, data } = await siweMessage.verify({ signature });
     if (success && data) {
@@ -61,7 +88,7 @@ router.post("/auth/verify", async (req, res) => {
     } else {
        return res.status(401).json({ error: "Invalid signature." });
     }
-  } catch (e) {
+  } catch (e: any) {
     res.status(400).json({ error: e.message });
   }
 });

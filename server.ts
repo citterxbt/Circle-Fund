@@ -2,7 +2,6 @@ import express from 'express';
 import path from 'path';
 import { generateNonce, SiweMessage } from 'siwe';
 import jwt from 'jsonwebtoken';
-import { createServer as createViteServer } from 'vite';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
@@ -80,7 +79,8 @@ async function startServer() {
   const PORT = 3000;
 
   // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -94,9 +94,12 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
+export default app;
 startServer();

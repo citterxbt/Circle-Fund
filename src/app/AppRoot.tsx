@@ -53,7 +53,7 @@ const authenticationAdapter = createAuthenticationAdapter({
         statement: "Sign in with Ethereum to the app.",
         uri,
         version: "1",
-        chainId: chainId || 1,
+        chainId: chainId || 5042002,
         nonce,
       });
       

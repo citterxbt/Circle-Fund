@@ -19,7 +19,7 @@ const queryClient = new QueryClient();
 const authenticationAdapter = createAuthenticationAdapter({
   getNonce: async () => {
     try {
-      const response = await fetch('/api/auth/nonce', { credentials: 'login' === 'login' ? 'same-origin' : 'include' });
+      const response = await fetch('/api/auth/nonce');
       if (!response.ok) {
           throw new Error('Failed to fetch nonce. Status: ' + response.status);
       }
@@ -60,7 +60,6 @@ const authenticationAdapter = createAuthenticationAdapter({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, signature }),
-        credentials: 'login' === 'login' ? 'same-origin' : 'include',
       });
       
       if (response.ok) {
@@ -80,7 +79,7 @@ const authenticationAdapter = createAuthenticationAdapter({
   },
   signOut: async () => {
     try {
-      await fetch('/api/auth/logout', { credentials: 'login' === 'login' ? 'same-origin' : 'include' });
+      await fetch('/api/auth/logout');
       localStorage.removeItem('supabase_token');
       window.dispatchEvent(new Event('auth_change'));
     } catch (e) {

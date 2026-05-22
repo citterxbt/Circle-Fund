@@ -1,28 +1,27 @@
-
-import React from "react";
-import { WagmiProvider } from "wagmi";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { RainbowKitProvider, darkTheme, createAuthenticationAdapter, RainbowKitAuthenticationProvider } from "@rainbow-me/rainbowkit";
-import { Routes, Route, Link, useLocation } from "react-router-dom";
-import { createSiweMessage } from "viem/siwe";
-import { wagmiConfig as config } from "../lib/wagmi";
-import { Dashboard } from "./pages/Dashboard";
-import { Profile } from "./pages/Profile";
-import { SubmitProposal } from "./pages/SubmitProposal";
-import { MilestoneTracker } from "./pages/MilestoneTracker";
-import { ProposalsList } from "./pages/ProposalsList";
-import { ProposalDetail } from "./pages/ProposalDetail";
-import { AdminPanel } from "./pages/AdminPanel";
-import { Layout } from "./components/Layout";
+import React from 'react';
+import { WagmiProvider } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RainbowKitProvider, darkTheme, createAuthenticationAdapter, RainbowKitAuthenticationProvider } from '@rainbow-me/rainbowkit';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { createSiweMessage } from 'viem/siwe';
+import { wagmiConfig as config } from '../lib/wagmi';
+import { Dashboard } from './pages/Dashboard';
+import { Profile } from './pages/Profile';
+import { SubmitProposal } from './pages/SubmitProposal';
+import { MilestoneTracker } from './pages/MilestoneTracker';
+import { ProposalsList } from './pages/ProposalsList';
+import { ProposalDetail } from './pages/ProposalDetail';
+import { AdminPanel } from './pages/AdminPanel';
+import { Layout } from './components/Layout';
 
 const queryClient = new QueryClient();
 
 const authenticationAdapter = createAuthenticationAdapter({
   getNonce: async () => {
     try {
-      const response = await fetch("/api/auth/nonce");
+      const response = await fetch('/api/auth/nonce');
       if (!response.ok) {
-          throw new Error("Failed to fetch nonce. Status: " + response.status);
+          throw new Error('Failed to fetch nonce. Status: ' + response.status);
       }
       const text = await response.text();
       try {
@@ -30,7 +29,7 @@ const authenticationAdapter = createAuthenticationAdapter({
         if (!data.nonce) throw new Error("Nonce missing");
         return data.nonce;
       } catch (err) {
-         console.error("Failed to parse nonce JSON. Response text:", text);
+         console.error('Failed to parse nonce JSON. Response text:', text);
          throw new Error("Invalid nonce response format from server");
       }
     } catch (e) {
@@ -42,48 +41,48 @@ const authenticationAdapter = createAuthenticationAdapter({
     return createSiweMessage({
       domain: window.location.host,
       address,
-      statement: "Sign in with Ethereum to the app.",
+      statement: 'Sign in with Ethereum to the app.',
       uri: window.location.origin,
-      version: "1",
+      version: '1',
       chainId,
       nonce,
     });
   },
   getMessageBody: ({ message }) => message,
   verify: async ({ message, signature }) => {
-    const response = await fetch("/api/auth/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const response = await fetch('/api/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, signature }),
     });
     
     if (response.ok) {
        const { token } = await response.json();
-       localStorage.setItem("supabase_token", token);
-       window.dispatchEvent(new Event("auth_change"));
+       localStorage.setItem('supabase_token', token);
+       window.dispatchEvent(new Event('auth_change'));
        return true;
     }
     return false;
   },
   signOut: async () => {
-    await fetch("/api/auth/logout");
-    localStorage.removeItem("supabase_token");
-    window.dispatchEvent(new Event("auth_change"));
+    await fetch('/api/auth/logout');
+    localStorage.removeItem('supabase_token');
+    window.dispatchEvent(new Event('auth_change'));
   },
 });
 
 export default function AppRoot() {
-  const [authStatus, setAuthStatus] = React.useState<"loading" | "unauthenticated" | "authenticated">(() => {
-    return localStorage.getItem("supabase_token") ? "authenticated" : "unauthenticated";
+  const [authStatus, setAuthStatus] = React.useState<'loading' | 'unauthenticated' | 'authenticated'>(() => {
+    return localStorage.getItem('supabase_token') ? 'authenticated' : 'unauthenticated';
   });
 
   React.useEffect(() => {
     const checkAuth = () => {
-      const token = localStorage.getItem("supabase_token");
-      setAuthStatus(token ? "authenticated" : "unauthenticated");
+      const token = localStorage.getItem('supabase_token');
+      setAuthStatus(token ? 'authenticated' : 'unauthenticated');
     };
-    window.addEventListener("auth_change", checkAuth);
-    return () => window.removeEventListener("auth_change", checkAuth);
+    window.addEventListener('auth_change', checkAuth);
+    return () => window.removeEventListener('auth_change', checkAuth);
   }, []);
 
   return (
@@ -93,7 +92,7 @@ export default function AppRoot() {
           adapter={authenticationAdapter} 
           status={authStatus}
         >
-          <RainbowKitProvider theme={darkTheme({ accentColor: "#ffffff", accentColorForeground: "#000000" })}>
+          <RainbowKitProvider theme={darkTheme({ accentColor: '#ffffff', accentColorForeground: '#000000' })}>
             <Routes>
               <Route path="/" element={<Layout />}>
                 <Route index element={<Dashboard />} />

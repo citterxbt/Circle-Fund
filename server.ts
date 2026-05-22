@@ -2,28 +2,19 @@ import express from 'express';
 import path from 'path';
 import { generateNonce, SiweMessage } from 'siwe';
 import jwt from 'jsonwebtoken';
-import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 
 const app = express();
 
-app.set('trust proxy', 1); // Trust first proxy for rate limiting (Cloud Run/Nginx)
+app.set('trust proxy', 1);
 
 // Apply security headers
 app.use(helmet({
-  contentSecurityPolicy: false, // Disabled for Vite HMR and local UI loading
+  contentSecurityPolicy: false,
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 }));
 
 app.use(express.json());
-
-// Apply rate limiting to authentication routes
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
-  message: { error: 'Too many authentication attempts, please try again later.' }
-});
-app.use('/api/auth', authLimiter);
 
 // In-memory nonce store (for prototype). In prod, use express-session or redis.
 const nonceStore = new Map<string, number>();

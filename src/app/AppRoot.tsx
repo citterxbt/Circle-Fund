@@ -20,6 +20,7 @@ const queryClient = new QueryClient();
 const authenticationAdapter = createAuthenticationAdapter({
   getNonce: async () => {
     try {
+      console.log("[AuthenticationAdapter] Fetching nonce...");
       const response = await fetch("/api/auth/nonce");
       if (!response.ok) {
           throw new Error("Failed to fetch nonce. Status: " + response.status);
@@ -27,47 +28,78 @@ const authenticationAdapter = createAuthenticationAdapter({
       const text = await response.text();
       try {
         const data = JSON.parse(text);
-        if (!data.nonce) throw new Error("Nonce missing");
+        if (!data.nonce) throw new Error("Nonce missing from response JSON");
+        console.log("[AuthenticationAdapter] GetNonce success:", data.nonce);
         return data.nonce;
       } catch (err) {
-         console.error("Failed to parse nonce JSON. Response text:", text);
+         console.error("[AuthenticationAdapter] Failed to parse nonce JSON. Response text:", text);
          throw new Error("Invalid nonce response format from server");
       }
     } catch (e) {
-      console.error("error in getNonce:", e);
+      console.error("[AuthenticationAdapter] error in getNonce:", e);
       throw e;
     }
   },
   createMessage: ({ nonce, address, chainId }) => {
-    return createSiweMessage({
-      domain: window.location.host,
-      address,
-      statement: "Sign in with Ethereum to the app.",
-      uri: window.location.origin,
-      version: "1",
-      chainId,
-      nonce,
-    });
+    try {
+      console.log("[AuthenticationAdapter] createMessage invoked with parameters:", { nonce, address, chainId });
+      
+      const domain = typeof window !== "undefined" ? window.location.host : "localhost";
+      const uri = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+      
+      const message = createSiweMessage({
+        domain,
+        address,
+        statement: "Sign in with Ethereum to the app.",
+        uri,
+        version: "1",
+        chainId: chainId || 1,
+        nonce,
+      });
+      
+      console.log("[AuthenticationAdapter] createMessage generated string successfully:", message);
+      return message;
+    } catch (err: any) {
+      console.error("[AuthenticationAdapter] error in createMessage:", err);
+      // Ensure the error is visible and propagated
+      throw new Error("Error generating SIWE message: " + err.message);
+    }
   },
   verify: async ({ message, signature }) => {
-    const response = await fetch("/api/auth/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, signature }),
-    });
-    
-    if (response.ok) {
-       const { token } = await response.json();
-       localStorage.setItem("supabase_token", token);
-       window.dispatchEvent(new Event("auth_change"));
-       return true;
+    try {
+      console.log("[AuthenticationAdapter] verify invoked with message and signature:", { message, signature });
+      const response = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message, signature }),
+      });
+      
+      console.log("[AuthenticationAdapter] verification response status:", response.status);
+      if (response.ok) {
+         const { token } = await response.json();
+         console.log("[AuthenticationAdapter] Verification successful. Token saved.");
+         localStorage.setItem("supabase_token", token);
+         window.dispatchEvent(new Event("auth_change"));
+         return true;
+      } else {
+         const errText = await response.text();
+         console.error("[AuthenticationAdapter] Verification failed:", errText);
+         return false;
+      }
+    } catch (e) {
+      console.error("[AuthenticationAdapter] Error in verify:", e);
+      return false;
     }
-    return false;
   },
   signOut: async () => {
-    await fetch("/api/auth/logout");
-    localStorage.removeItem("supabase_token");
-    window.dispatchEvent(new Event("auth_change"));
+    try {
+      console.log("[AuthenticationAdapter] signing out...");
+      await fetch("/api/auth/logout");
+      localStorage.removeItem("supabase_token");
+      window.dispatchEvent(new Event("auth_change"));
+    } catch (e) {
+      console.error("[AuthenticationAdapter] Error in signOut:", e);
+    }
   },
 });
 

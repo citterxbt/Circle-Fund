@@ -49,7 +49,6 @@ const authenticationAdapter = createAuthenticationAdapter({
       nonce,
     });
   },
-  getMessageBody: ({ message }) => message,
   verify: async ({ message, signature }) => {
     const response = await fetch("/api/auth/verify", {
       method: "POST",

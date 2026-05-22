@@ -26,7 +26,7 @@ export function FAQ() {
   );
 }
 
-function FAQItem({ question, answer }: { question: string, answer: string }) {
+function FAQItem({ question, answer }: { question: string, answer: string, key?: any }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="border border-white/5 rounded-2xl overflow-hidden bg-[#0F0F0F] transition-colors hover:border-white/10">

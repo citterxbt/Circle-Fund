@@ -151,7 +151,7 @@ export function SubmitProposal() {
     trigger,
     formState: { errors },
   } = useForm<ProposalFormValues>({
-    resolver: zodResolver(proposalSchema),
+    resolver: zodResolver(proposalSchema) as any,
     mode: 'onTouched',
     defaultValues: {
       team_members: [
@@ -609,7 +609,7 @@ export function SubmitProposal() {
                       Save & Continue <ArrowRight className="w-4 h-4" />
                    </button>
                  ) : (
-                   <button type="button" onClick={handleSubmit(onSubmit)} disabled={loading} className="flex items-center gap-2 px-10 py-3 bg-emerald-500 text-black hover:bg-emerald-400 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-emerald-500/30 active:scale-95 disabled:opacity-50 disabled:active:scale-100 disabled:pointer-events-none">
+                   <button type="button" onClick={handleSubmit(onSubmit as any)} disabled={loading} className="flex items-center gap-2 px-10 py-3 bg-emerald-500 text-black hover:bg-emerald-400 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-emerald-500/30 active:scale-95 disabled:opacity-50 disabled:active:scale-100 disabled:pointer-events-none">
                       {loading ? 'Submitting to Blockchain...' : 'Sign & Submit Proposal'}
                    </button>
                  )}

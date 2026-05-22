@@ -5,7 +5,7 @@ const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder_k
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
-    fetch: async (url, options = {}) => {
+    fetch: async (url, options: any = {}) => {
       const token = localStorage.getItem('supabase_token');
       if (token) {
         options.headers = {

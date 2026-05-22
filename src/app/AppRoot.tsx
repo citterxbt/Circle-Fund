@@ -3,7 +3,6 @@ import { WagmiProvider } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RainbowKitProvider, darkTheme, createAuthenticationAdapter, RainbowKitAuthenticationProvider } from '@rainbow-me/rainbowkit';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { createSiweMessage } from 'viem/siwe';
 import { wagmiConfig as config } from '../lib/wagmi';
 import { Dashboard } from './pages/Dashboard';
@@ -23,15 +22,9 @@ const authenticationAdapter = createAuthenticationAdapter({
     if (!response.ok) {
         throw new Error('Failed to fetch nonce.');
     }
-    const text = await response.text();
-    try {
-      const { nonce } = JSON.parse(text);
-      if (!nonce) throw new Error("Nonce missing");
-      return nonce;
-    } catch (e) {
-      console.error("Failed to parse nonce response:", text);
-      throw new Error('Invalid nonce response format');
-    }
+    const data = await response.json();
+    if (!data.nonce) throw new Error("Nonce missing");
+    return data.nonce;
   },
   createMessage: ({ nonce, address, chainId }) => {
     return createSiweMessage({

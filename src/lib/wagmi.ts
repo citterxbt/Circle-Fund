@@ -21,4 +21,5 @@ export const wagmiConfig = getDefaultConfig({
   appName: 'Circle Fund App',
   projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || 'ff0b8fca1665a3c945fbf676dbfbfaed',
   chains: [arcTestnet],
+  ssr: false,
 });

@@ -12,7 +12,8 @@ app.set('trust proxy', 1); // Trust first proxy for rate limiting (Cloud Run/Ngi
 
 // Apply security headers
 app.use(helmet({
-  contentSecurityPolicy: false // Disabled for Vite HMR and local UI loading
+  contentSecurityPolicy: false, // Disabled for Vite HMR and local UI loading
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 }));
 
 app.use(express.json());

@@ -10,26 +10,31 @@ export function HowItWorks() {
   ];
 
   return (
-    <section className="py-24 px-6 relative overflow-hidden">
-      <div className="max-w-7xl mx-auto">
-        <h2 className="text-3xl md:text-5xl font-bold mb-16 text-center">How It Works</h2>
+    <section id="how" className="py-32 px-[4vw] relative overflow-hidden bg-transparent text-white">
+      <div className="absolute top-0 right-1/2 w-[800px] h-[800px] bg-gradient-radial from-blue-900/10 to-transparent blur-[120px] -z-10" />
+      <div className="max-w-[1400px] mx-auto">
+        <h2 className="text-[2.5rem] md:text-[4rem] font-bold tracking-tight mb-20 text-center leading-[1.1]">
+          Seamless Operations.<br />
+          <span className="text-white/40">Zero Intermediaries.</span>
+        </h2>
         <div className="relative">
-          <div className="absolute top-1/2 left-0 w-full h-px bg-dark-800 -translate-y-1/2 hidden md:block" />
-          <div className="grid md:grid-cols-4 gap-8">
+          <div className="absolute top-1/2 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-y-1/2 hidden md:block" />
+          <div className="grid md:grid-cols-4 gap-6 relative z-10">
             {steps.map((step, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.15 }}
-                className="relative bg-dark-900 border border-dark-800 p-8 rounded-2xl z-10"
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: "-100px" }}
+                transition={{ delay: i * 0.1, duration: 0.8, ease: "easeOut" }}
+                className="group relative bg-[#0F0F0F] border border-white/5 p-8 rounded-3xl hover:border-white/20 transition-all hover:-translate-y-2 hover:shadow-[0_20px_40px_rgba(0,0,0,0.4)]"
               >
-                <div className="text-4xl font-display font-bold text-primary-500/20 mb-4">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl" />
+                <div className="text-[3rem] font-bold text-white/10 mb-6 group-hover:text-white/20 transition-colors">
                   {step.num}
                 </div>
-                <h3 className="text-xl font-semibold mb-3">{step.title}</h3>
-                <p className="text-slate-400 text-sm leading-relaxed">
+                <h3 className="text-xl font-semibold mb-4 text-white/90">{step.title}</h3>
+                <p className="text-[#A3A3A3] text-sm leading-loose">
                   {step.desc}
                 </p>
               </motion.div>

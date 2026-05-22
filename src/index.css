@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 @import "@rainbow-me/rainbowkit/styles.css";
 
@@ -14,12 +14,17 @@
   
   --color-dark-900: #0f172a;
   --color-dark-800: #1e293b;
+  --color-dark-950: #020617;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  @apply bg-dark-900 text-slate-100 font-sans antialiased;
+  @apply bg-[#0A0A0A] text-slate-100 font-sans antialiased;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  @apply font-display tracking-tight;
+  @apply font-sans tracking-tight;
 }

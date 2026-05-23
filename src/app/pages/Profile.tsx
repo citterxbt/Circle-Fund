@@ -33,6 +33,7 @@ export function Profile() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'awaiting-signature' | 'confirming-tx' | 'processing-file' | 'success'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'awaiting-signature' | 'confirming-tx' | 'saving-to-db' | 'success'>('idle');
   const [form, setForm] = useState({
     username: '',
     bio: '',
@@ -115,7 +116,32 @@ export function Profile() {
 
     setUploading(true);
     setError('');
-    setUploadStatus('awaiting-signature');
+    setUploadStatus('processing-file');
+    
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        setForm(prev => ({ ...prev, avatar_url: base64data }));
+        setUploadStatus('success');
+        setUploading(false);
+      };
+      reader.onerror = () => {
+        setError("Failed to read the selected file stream.");
+        setUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch (err: any) {
+      setError(err.message || 'Error processing image.');
+      setUploading(false);
+    }
+  };
+
+  const saveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSaveStatus('awaiting-signature');
     
     try {
       console.log("[useWriteContract] Sending 0.01 USDC transfer to admin address:", ADMIN_WALLET);
@@ -126,7 +152,7 @@ export function Profile() {
         args: [ADMIN_WALLET, 10000n], // 0.01 USDC (USDC has 6 decimals, so 0.01 is 10000n)
       } as any);
       
-      setUploadStatus('confirming-tx');
+      setSaveStatus('confirming-tx');
       
       if (publicClient) {
         console.log("[usePublicClient] Waiting for transaction receipt...", hash);
@@ -135,38 +161,8 @@ export function Profile() {
         await new Promise(resolve => setTimeout(resolve, 4000));
       }
       
-      setUploadStatus('processing-file');
+      setSaveStatus('saving-to-db');
       
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64data = reader.result as string;
-        setForm(prev => ({ ...prev, avatar_url: base64data }));
-        setUploadStatus('success');
-        setUploading(false);
-      };
-      reader.onerror = () => {
-        throw new Error("Failed to read the selected file stream.");
-      };
-      reader.readAsDataURL(file);
-      
-    } catch (err: any) {
-      console.error("Error in payment or processing:", err);
-      if (err.message?.includes('rejected') || err.message?.includes('User denied')) {
-        setError('Transaction signature rejected by user.');
-      } else {
-        setError(err.message || 'Failed to complete 0.01 USDC transaction. Ensure your wallet has sufficient USDC ARC and native ARC for gas.');
-      }
-      setUploadStatus('idle');
-      setUploading(false);
-    }
-  };
-
-  const saveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    
-    try {
       const { error: updateError } = await supabase
         .from('profiles')
         .update({
@@ -183,9 +179,16 @@ export function Profile() {
       if (updateError) throw updateError;
       
       setProfile({ ...profile, ...form });
+      setSaveStatus('success');
       setIsEditing(false);
     } catch (err: any) {
-      setError(err.message || 'Failed to save profile');
+      console.error("Error during payment or save:", err);
+      if (err.message?.includes('rejected') || err.message?.includes('User denied')) {
+        setError('Transaction signature rejected by user.');
+      } else {
+        setError(err.message || 'Failed to complete 0.01 USDC transaction. Ensure your wallet has sufficient USDC ARC and native ARC for gas.');
+      }
+      setSaveStatus('idle');
     } finally {
       setLoading(false);
     }
@@ -239,9 +242,7 @@ export function Profile() {
                         <button type="button" className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-4 py-2 text-white text-sm transition-colors disabled:opacity-50">
                           {uploading ? (
                             <span className="text-xs font-mono font-medium animate-pulse">
-                              {uploadStatus === 'awaiting-signature' && 'Awaiting wallet signature...'}
-                              {uploadStatus === 'confirming-tx' && 'Confirming fee transaction...'}
-                              {uploadStatus === 'processing-file' && 'Processing image stream...'}
+                              Processing image stream...
                             </span>
                           ) : (
                             <>
@@ -252,7 +253,7 @@ export function Profile() {
                         </button>
                       </div>
                       <p className="text-[11px] text-white/40 mt-3 max-w-xs leading-relaxed">
-                        On-chain verification: a platform fee of <strong>0.01 USDC ARC</strong> will be authorized via your wallet to set or replace your profile picture.
+                        Select any local image under 2MB. Your avatar will be updated locally and saved permanently when you submit the changes.
                       </p>
                     </div>
                   </div>
@@ -302,21 +303,33 @@ export function Profile() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-4 border-t border-white/10 pt-6">
-              <button 
-                type="button" 
-                onClick={() => setIsEditing(false)}
-                className="px-6 py-2.5 bg-white/5 hover:bg-white/10 rounded-full transition-colors text-sm"
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit" 
-                disabled={loading || uploading}
-                className="px-6 py-2.5 bg-white text-black hover:bg-gray-200 rounded-full font-medium transition-colors text-sm disabled:opacity-50"
-              >
-                {loading ? 'Saving...' : 'Save Profile'}
-              </button>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-t border-white/10 pt-6">
+              <p className="text-xs text-white/40 max-w-md text-center md:text-left leading-relaxed">
+                Platform verification: An on-chain fee of <strong>0.01 USDC ARC Testnet</strong> is authorized via your wallet to submit and save your profile changes permanently.
+              </p>
+              <div className="flex items-center gap-4 w-full md:w-auto justify-end">
+                {loading && (
+                  <span className="text-xs font-mono text-white/60 mr-2 animate-pulse">
+                    {saveStatus === 'awaiting-signature' && 'Awaiting wallet signature...'}
+                    {saveStatus === 'confirming-tx' && 'Confirming fee transaction...'}
+                    {saveStatus === 'saving-to-db' && 'Saving your profile...'}
+                  </span>
+                )}
+                <button 
+                  type="button" 
+                  onClick={() => setIsEditing(false)}
+                  className="px-6 py-2.5 bg-white/5 hover:bg-white/10 rounded-full transition-colors text-sm shrink-0"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={loading || uploading}
+                  className="px-6 py-2.5 bg-white text-black hover:bg-gray-200 rounded-full font-medium transition-colors text-sm disabled:opacity-50 shrink-0"
+                >
+                  {loading ? 'Processing...' : 'Save Profile'}
+                </button>
+              </div>
             </div>
           </form>
         </div>

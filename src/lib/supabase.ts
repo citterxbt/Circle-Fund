@@ -14,18 +14,22 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         if (options.headers) {
           if (options.headers instanceof Headers) {
             options.headers.forEach((value, key) => {
-              headers[key] = value;
+              headers[key.toLowerCase()] = value;
             });
           } else if (typeof options.headers.forEach === 'function') {
             options.headers.forEach((value: string, key: string) => {
-              headers[key] = value;
+              headers[key.toLowerCase()] = value;
             });
           } else if (typeof options.headers === 'object') {
-            Object.assign(headers, options.headers);
+            for (const [key, value] of Object.entries(options.headers)) {
+              if (value !== undefined && value !== null) {
+                headers[key.toLowerCase()] = String(value);
+              }
+            }
           }
         }
         
-        headers['Authorization'] = `Bearer ${token}`;
+        headers['authorization'] = `Bearer ${token}`;
         options.headers = headers;
       }
       return fetch(url, options);

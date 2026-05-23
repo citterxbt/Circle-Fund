@@ -27,7 +27,7 @@ export function AdminPanel() {
   }
 
   if (!address || address.toLowerCase() !== adminWallet) {
-    return <Navigate to="/app" replace />;
+    return <Navigate to="/app/profile" replace />;
   }
 
   const updateProposal = async (id: string, status: string) => {

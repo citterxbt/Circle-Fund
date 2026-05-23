@@ -72,7 +72,7 @@ export function CTASection() {
           to={appUrl}
           className="inline-flex items-center justify-center bg-white/5 backdrop-blur-md border border-white/10 px-12 py-5 rounded-full font-bold text-[16px] text-white/80 hover:bg-white/10 hover:text-white transition-colors"
         >
-          Enter App
+          Launch App
         </Link>
       </div>
     </section>

@@ -128,7 +128,7 @@ export default function AppRoot() {
           <RainbowKitProvider theme={darkTheme({ accentColor: "#ffffff", accentColorForeground: "#000000" })}>
             <Routes>
               <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/profile" replace />} />
+                <Route index element={<Navigate to="/app/profile" replace />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="submit" element={<SubmitProposal />} />
                 <Route path="milestones" element={<MilestoneTracker />} />

@@ -50,11 +50,11 @@ export function Profile() {
     if (!address) return;
     try {
       // Load profile
-      const { data: prof } = await supabase
+      const { data: prof, error: profErr } = await supabase
         .from('profiles')
         .select('*')
         .eq('wallet_address', address?.toLowerCase())
-        .single();
+        .maybeSingle();
         
       if (prof) {
         setProfile(prof);
@@ -67,12 +67,14 @@ export function Profile() {
           github_url: prof.github_url || ''
         });
       } else {
-        const { data: newProf } = await supabase
+        const { data: newProf, error: insErr } = await supabase
           .from('profiles')
           .insert({ wallet_address: address?.toLowerCase() })
           .select()
-          .single();
-        setProfile(newProf);
+          .maybeSingle();
+        if (newProf) {
+          setProfile(newProf);
+        }
       }
 
       // Load all proposals by user

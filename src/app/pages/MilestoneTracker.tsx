@@ -192,7 +192,7 @@ export function MilestoneTracker() {
                     {claimStatus[ms.id] === 'awaiting-signature' && 'Awaiting Sign...'}
                     {claimStatus[ms.id] === 'confirming-tx' && 'Confirming (0.01)...'}
                     {claimStatus[ms.id] === 'completing-claim' && 'Finalizing...'}
-                    {!claimStatus[ms.id] && 'Claim Funds (0.01 USDC)'}
+                    {!claimStatus[ms.id] && 'Claim Fund'}
                   </button>
                 )}
               </div>

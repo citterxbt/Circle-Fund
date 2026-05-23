@@ -92,6 +92,18 @@ router.post("/auth/verify", async (req, res) => {
       };
       
       const token = jwt.sign(payload, secret);
+      
+      // Ensure user profile exists in database immediately upon login
+      try {
+        const adminToken = generateAdminToken();
+        const supabaseAdmin = getSupabaseClient(adminToken);
+        await supabaseAdmin
+          .from("profiles")
+          .upsert({ wallet_address: data.address.toLowerCase() }, { onConflict: "wallet_address" });
+      } catch (e) {
+        console.error("Error creating profile during SIWE verify:", e);
+      }
+
       return res.json({ ok: true, token });
     } else {
        return res.status(401).json({ error: "Invalid signature." });
@@ -121,11 +133,11 @@ function authenticateUser(req: any): { wallet_address: string; admin: boolean } 
   }
 }
 
-// Generate admin token
+// Generate admin token using service_role to bypass Row-Level Security
 function generateAdminToken(): string {
   const secret = process.env.SUPABASE_JWT_SECRET || "default_auth_secret_fallback";
   const payload = {
-    role: "authenticated",
+    role: "service_role",
     aud: "authenticated",
     sub: "backend_admin",
     wallet_address: "backend_admin",
@@ -177,6 +189,15 @@ router.post("/milestones/:id/claim", async (req, res) => {
 
     if (milestone.status !== "approved") {
       return res.status(400).json({ error: "Milestone is not approved for claiming" });
+    }
+
+    // Ensure authorized user profile row exists in database before status transition triggers a claim update
+    const authorWallet = milestone.proposals.author_wallet.toLowerCase();
+    const { error: upsertErr } = await supabaseAdmin
+      .from("profiles")
+      .upsert({ wallet_address: authorWallet }, { onConflict: "wallet_address" });
+    if (upsertErr) {
+      console.error("Error ensuring profile exists during milestone claim:", upsertErr);
     }
 
     // Update status to claimed

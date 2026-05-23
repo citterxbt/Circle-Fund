@@ -2,7 +2,7 @@
 import express from "express";
 import path from "path";
 import helmet from "helmet";
-import apiRouter from "./api/router";
+import { router as apiRouter } from "./api/index";
 
 const app = express();
 

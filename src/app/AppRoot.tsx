@@ -3,7 +3,7 @@ import React from "react";
 import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RainbowKitProvider, darkTheme, createAuthenticationAdapter, RainbowKitAuthenticationProvider } from "@rainbow-me/rainbowkit";
-import { Routes, Route, Link, useLocation } from "react-router-dom";
+import { Routes, Route, Link, useLocation, Navigate } from "react-router-dom";
 import { createSiweMessage } from "viem/siwe";
 import { wagmiConfig as config } from "../lib/wagmi";
 import { Dashboard } from "./pages/Dashboard";
@@ -128,7 +128,7 @@ export default function AppRoot() {
           <RainbowKitProvider theme={darkTheme({ accentColor: "#ffffff", accentColorForeground: "#000000" })}>
             <Routes>
               <Route path="/" element={<Layout />}>
-                <Route index element={<Dashboard />} />
+                <Route index element={<Navigate to="/profile" replace />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="submit" element={<SubmitProposal />} />
                 <Route path="milestones" element={<MilestoneTracker />} />

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { LayoutDashboard, FileText, CheckSquare, UserCircle, Settings, Home } from 'lucide-react';
+import { FileText, CheckSquare, UserCircle, Settings, Home } from 'lucide-react';
 import { useAccount } from 'wagmi';
 
 export function Layout() {
@@ -11,7 +11,6 @@ export function Layout() {
   const isAdmin = address && adminWallet && address.toLowerCase() === adminWallet;
 
   const navItems = [
-    { label: 'Dashboard', path: '/app', icon: <LayoutDashboard className="w-4 h-4" />, exact: true },
     { label: 'Explore Proposals', path: '/app/proposals', icon: <Home className="w-4 h-4" /> },
     { label: 'Submit Proposal', path: '/app/submit', icon: <FileText className="w-4 h-4" /> },
     { label: 'Milestone Tracker', path: '/app/milestones', icon: <CheckSquare className="w-4 h-4" /> },
@@ -32,7 +31,7 @@ export function Layout() {
         </Link>
         <nav className="hidden lg:flex items-center gap-3 text-[11px] font-semibold tracking-[0.1em] uppercase font-sans">
           {navItems.map((item) => {
-            const isActive = item.exact ? location.pathname === item.path : location.pathname.startsWith(item.path);
+            const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + '/');
             return (
               <Link
                 key={item.path}

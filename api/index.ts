@@ -101,6 +101,187 @@ router.post("/auth/verify", async (req, res) => {
   }
 });
 
+// Helper to authenticate user from authorization header
+function authenticateUser(req: any): { wallet_address: string; admin: boolean } | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+  const token = authHeader.split(" ")[1];
+  try {
+    const secret = process.env.SUPABASE_JWT_SECRET || "default_auth_secret_fallback";
+    const decoded = jwt.verify(token, secret) as any;
+    return {
+      wallet_address: decoded.wallet_address,
+      admin: decoded.admin || false,
+    };
+  } catch (err) {
+    console.error("authenticateUser verification failed:", err);
+    return null;
+  }
+}
+
+// Generate admin token
+function generateAdminToken(): string {
+  const secret = process.env.SUPABASE_JWT_SECRET || "default_auth_secret_fallback";
+  const payload = {
+    role: "authenticated",
+    aud: "authenticated",
+    sub: "backend_admin",
+    wallet_address: "backend_admin",
+    admin: true,
+    exp: Math.floor(Date.now() / 1000) + 60, // 1 minute
+  };
+  return jwt.sign(payload, secret);
+}
+
+// Initialize Supabase admin client
+import { createClient } from "@supabase/supabase-js";
+const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || "placeholder_key";
+
+function getSupabaseClient(token?: string) {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    },
+  });
+}
+
+// Claim Milestone funds endpoint
+router.post("/milestones/:id/claim", async (req, res) => {
+  const user = authenticateUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const milestoneId = req.params.id;
+  try {
+    const adminToken = generateAdminToken();
+    const supabaseAdmin = getSupabaseClient(adminToken);
+
+    // Fetch milestone
+    const { data: milestone, error: fetchErr } = await supabaseAdmin
+      .from("milestones")
+      .select("*, proposals(*)")
+      .eq("id", milestoneId)
+      .single();
+
+    if (fetchErr || !milestone) {
+      return res.status(404).json({ error: "Milestone not found" });
+    }
+
+    if (milestone.proposals.author_wallet.toLowerCase() !== user.wallet_address.toLowerCase()) {
+      return res.status(403).json({ error: "Only the author of this proposal can claim its milestones" });
+    }
+
+    if (milestone.status !== "approved") {
+      return res.status(400).json({ error: "Milestone is not approved for claiming" });
+    }
+
+    // Update status to claimed
+    const { data, error: updateErr } = await supabaseAdmin
+      .from("milestones")
+      .update({ status: "claimed" })
+      .eq("id", milestoneId)
+      .select();
+
+    if (updateErr) throw updateErr;
+
+    // Fetch the updated profiles total claimed
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("total_claimed")
+      .eq("wallet_address", user.wallet_address.toLowerCase())
+      .single();
+
+    return res.json({ ok: true, milestone: data[0], total_claimed: prof?.total_claimed || 0 });
+  } catch (err: any) {
+    console.error("Error during claim processing:", err);
+    return res.status(500).json({ error: err.message || "Internal Server Error" });
+  }
+});
+
+// Cast vote endpoint
+router.post("/proposals/:id/vote", async (req, res) => {
+  const user = authenticateUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const proposalId = req.params.id;
+  const { vote_type } = req.body;
+
+  if (vote_type !== "upvote" && vote_type !== "downvote") {
+    return res.status(400).json({ error: "Invalid vote type" });
+  }
+
+  try {
+    const adminToken = generateAdminToken();
+    const supabaseAdmin = getSupabaseClient(adminToken);
+
+    // Check if user already has a vote
+    const { data: existingVote } = await supabaseAdmin
+      .from("votes")
+      .select("*")
+      .eq("proposal_id", proposalId)
+      .eq("voter_wallet", user.wallet_address.toLowerCase())
+      .maybeSingle();
+
+    if (existingVote) {
+      if (existingVote.vote_type === vote_type) {
+        return res.status(400).json({ error: `You have already cast an ${vote_type} on this proposal.` });
+      } else {
+        return res.status(400).json({ error: `You have already cast an ${existingVote.vote_type}. Please cancel it first before changing your vote.` });
+      }
+    }
+
+    // Insert new vote
+    const { error: insertErr } = await supabaseAdmin
+      .from("votes")
+      .insert({
+        proposal_id: proposalId,
+        voter_wallet: user.wallet_address.toLowerCase(),
+        vote_type
+      });
+
+    if (insertErr) throw insertErr;
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("Error casting vote:", err);
+    return res.status(500).json({ error: err.message || "Internal Server Error" });
+  }
+});
+
+// Cancel vote endpoint
+router.delete("/proposals/:id/vote", async (req, res) => {
+  const user = authenticateUser(req);
+  if (!user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const proposalId = req.params.id;
+
+  try {
+    const adminToken = generateAdminToken();
+    const supabaseAdmin = getSupabaseClient(adminToken);
+
+    const { error: deleteErr } = await supabaseAdmin
+      .from("votes")
+      .delete()
+      .eq("proposal_id", proposalId)
+      .eq("voter_wallet", user.wallet_address.toLowerCase());
+
+    if (deleteErr) throw deleteErr;
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("Error canceling vote:", err);
+    return res.status(500).json({ error: err.message || "Internal Server Error" });
+  }
+});
+
 router.get("/auth/logout", (req, res) => {
   res.json({ ok: true });
 });

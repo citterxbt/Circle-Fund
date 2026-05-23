@@ -3,7 +3,7 @@ import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import { supabase } from '../../lib/supabase';
 import { StatusBadge } from './Dashboard';
 import { Link } from 'react-router-dom';
-import { Edit2, Github, Twitter, Send, UserCircle2, Upload } from 'lucide-react';
+import { Edit2, Github, Twitter, Send, UserCircle2, Upload, Clock, FileText, ArrowRight } from 'lucide-react';
 
 const USDC_CONTRACT = '0x3600000000000000000000000000000000000000';
 const ADMIN_WALLET = '0x27545eB2be12eAF146CaAB5f2436FC933AfA57a5';
@@ -28,7 +28,9 @@ export function Profile() {
   const [profile, setProfile] = useState<any>(null);
   const [proposals, setProposals] = useState<any[]>([]);
   const [votes, setVotes] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'proposals' | 'votes'>('proposals');
+  const [activeTab, setActiveTab] = useState<'proposals' | 'votes' | 'dashboard'>('dashboard');
+  const [stats, setStats] = useState({ active: 0, pending: 0, completed: 0 });
+  const [upcomingMilestones, setUpcomingMilestones] = useState<any[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -44,11 +46,10 @@ export function Profile() {
   });
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  async function loadData() {
     if (!address) return;
-
-    async function loadData() {
-      // Upsert profile for claimed amount simulation
+    try {
+      // Load profile
       const { data: prof } = await supabase
         .from('profiles')
         .select('*')
@@ -81,7 +82,28 @@ export function Profile() {
         .eq('author_wallet', address?.toLowerCase())
         .order('created_at', { ascending: false });
       
-      if (props) setProposals(props);
+      if (props) {
+        setProposals(props);
+        setStats({
+          active: props.filter(p => p.status === 'approved').length,
+          pending: props.filter(p => p.status === 'pending').length,
+          completed: props.filter(p => p.status === 'completed').length,
+        });
+
+        const activeIds = props.filter(p => p.status === 'approved').map(p => p.id);
+        if (activeIds.length > 0) {
+          const { data: milestones } = await supabase
+            .from('milestones')
+            .select(`*, proposals(title)`)
+            .in('proposal_id', activeIds)
+            .eq('status', 'pending')
+            .order('deadline', { ascending: true })
+            .limit(3);
+          if (milestones) setUpcomingMilestones(milestones);
+        } else {
+          setUpcomingMilestones([]);
+        }
+      }
 
       // Load all votes by user
       const { data: userVotes } = await supabase
@@ -91,9 +113,22 @@ export function Profile() {
         .order('created_at', { ascending: false });
         
       if (userVotes) setVotes(userVotes);
+    } catch (err) {
+      console.error("Error loading profile data:", err);
     }
-    
+  }
+
+  useEffect(() => {
+    if (!address) return;
     loadData();
+  }, [address]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      loadData();
+    };
+    window.addEventListener("profile_claimed_update", handleUpdate);
+    return () => window.removeEventListener("profile_claimed_update", handleUpdate);
   }, [address]);
 
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -407,6 +442,12 @@ export function Profile() {
 
       <div className="border-b border-white/10 mb-6 flex gap-8">
         <button 
+          onClick={() => setActiveTab('dashboard')}
+          className={`pb-3 text-lg font-bold transition-colors border-b-2 ${activeTab === 'dashboard' ? 'border-white text-white' : 'border-transparent text-white/50 hover:text-white/80'}`}
+        >
+          Dashboard
+        </button>
+        <button 
           onClick={() => setActiveTab('proposals')}
           className={`pb-3 text-lg font-bold transition-colors border-b-2 ${activeTab === 'proposals' ? 'border-white text-white' : 'border-transparent text-white/50 hover:text-white/80'}`}
         >
@@ -419,6 +460,97 @@ export function Profile() {
           Voting History
         </button>
       </div>
+
+      {activeTab === 'dashboard' && (
+        <div className="space-y-10">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 p-6 rounded-2xl">
+              <span className="text-white/40 text-xs font-bold uppercase tracking-widest block mb-2">Active Proposals</span>
+              <span className="text-3xl font-bold font-display text-white">{stats.active}</span>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 p-6 rounded-2xl">
+              <span className="text-white/40 text-xs font-bold uppercase tracking-widest block mb-2">Pending Review</span>
+              <span className="text-3xl font-bold font-display text-white">{stats.pending}</span>
+            </div>
+            <div className="bg-white/5 backdrop-blur-md border border-white/10 p-6 rounded-2xl">
+              <span className="text-white/40 text-xs font-bold uppercase tracking-widest block mb-2">Completed Proposals</span>
+              <span className="text-3xl font-bold font-display text-white">{stats.completed}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+            {/* Recent Proposals */}
+            <div>
+              <div className="flex items-center gap-2 mb-6">
+                <FileText className="w-5 h-5 text-white/80" />
+                <h3 className="text-xl font-bold font-display text-white">Recent Proposals</h3>
+              </div>
+              {proposals.length === 0 ? (
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 p-8 rounded-2xl text-center text-white/40 text-sm">
+                  No proposals submitted yet.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {proposals.slice(0, 3).map(p => (
+                    <Link to={`/app/proposals/${p.id}`} key={p.id} className="block bg-white/5 backdrop-blur-md border border-white/10 hover:bg-white/10 p-5 rounded-xl hover:border-white/30 transition-all">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-semibold text-white/90 text-base">{p.title}</h4>
+                        <StatusBadge status={p.status} />
+                      </div>
+                      <div className="text-sm text-white/60">
+                        Requested: {p.requested_amount} USDC
+                      </div>
+                    </Link>
+                  ))}
+                  {proposals.length > 3 && (
+                    <button 
+                      onClick={() => setActiveTab('proposals')} 
+                      className="text-sm text-white/60 hover:text-white flex items-center gap-1.5 font-semibold transition-colors mt-2"
+                    >
+                      View all Proposals <ArrowRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Upcoming Milestones */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-amber-400" />
+                  <h3 className="text-xl font-bold font-display text-white font-sans">Upcoming Milestones</h3>
+                </div>
+                {upcomingMilestones.length > 0 && (
+                  <Link to="/app/milestones" className="text-sm text-white/80 hover:text-white flex items-center gap-1">
+                    View Tracker <ArrowRight className="w-4 h-4" />
+                  </Link>
+                )}
+              </div>
+              {upcomingMilestones.length === 0 ? (
+                <div className="bg-white/5 backdrop-blur-md border border-white/10 p-8 rounded-2xl text-center text-white/40 text-sm">
+                  No pending milestones on active approved proposals.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {upcomingMilestones.map(m => (
+                    <div key={m.id} className="bg-white/5 backdrop-blur-md border border-white/10 p-5 rounded-xl">
+                      <div className="text-xs text-white/40 mb-1 tracking-wider uppercase font-semibold truncate">
+                        {m.proposals?.title}
+                      </div>
+                      <h4 className="font-bold text-white/95 text-sm mb-1">{m.title}</h4>
+                      <span className="text-xs text-white/60">
+                        {m.amount} USDC · Due {new Date(m.deadline).toLocaleDateString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeTab === 'proposals' && (
         <>

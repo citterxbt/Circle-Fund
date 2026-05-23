@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Trash2, AlertCircle, ArrowRight, ArrowLeft, CheckCircle2 } from 'lucide-react';
@@ -7,6 +7,22 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { motion, AnimatePresence } from 'motion/react';
+
+const USDC_CONTRACT = '0x3600000000000000000000000000000000000000';
+const ADMIN_WALLET = '0x27545eB2be12eAF146CaAB5f2436FC933AfA57a5';
+
+const erc20Abi = [
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    outputs: [{ name: '', type: 'bool' }]
+  }
+] as const;
 
 const proposalSchema = z.object({
   title: z.string().min(1, 'Project name is required').max(80, 'Max 80 characters'),
@@ -139,7 +155,10 @@ const ErrorMsg = ({ msg }: { msg?: string }) => msg ? <p className="text-rose-40
 export function SubmitProposal() {
   const { address } = useAccount();
   const navigate = useNavigate();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
   const [loading, setLoading] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState('');
   const [globalError, setGlobalError] = useState('');
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
@@ -209,6 +228,32 @@ export function SubmitProposal() {
       setLoading(true);
       setGlobalError('');
       
+      if (!address) {
+        setGlobalError('Please connect your wallet first.');
+        setLoading(false);
+        return;
+      }
+
+      setSubmitStatus('awaiting-signature');
+      console.log("[useWriteContract] Sending 0.01 USDC proposal submission fee to admin:", ADMIN_WALLET);
+      
+      const hash = await writeContractAsync({
+        address: USDC_CONTRACT,
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [ADMIN_WALLET, 10000n], // 0.01 USDC (6 decimals)
+      } as any);
+
+      setSubmitStatus('confirming-tx');
+      if (publicClient) {
+        console.log("[usePublicClient] Waiting for transaction receipt...", hash);
+        await publicClient.waitForTransactionReceipt({ hash });
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 4000));
+      }
+
+      setSubmitStatus('saving-proposal');
+
       const { data: proposal, error: propErr } = await supabase.from('proposals').insert({
         title: data.title,
         one_line_summary: data.one_line_summary,
@@ -253,9 +298,15 @@ export function SubmitProposal() {
 
       navigate('/app/proposals');
     } catch (err: any) {
-      setGlobalError(err.message || 'Submission failed. Check your data and network.');
+      console.error("Error submitting proposal:", err);
+      if (err.message?.includes('rejected') || err.message?.includes('User denied')) {
+        setGlobalError('On-chain fee transaction signature rejected by user.');
+      } else {
+        setGlobalError(err.message || 'Failed to complete 0.01 USDC transaction fee. Ensure your wallet has sufficient USDC ARC and native ARC for gas.');
+      }
     } finally {
       setLoading(false);
+      setSubmitStatus('');
     }
   };
 
@@ -610,7 +661,14 @@ export function SubmitProposal() {
                    </button>
                  ) : (
                    <button type="button" onClick={handleSubmit(onSubmit as any)} disabled={loading} className="flex items-center gap-2 px-10 py-3 bg-emerald-500 text-black hover:bg-emerald-400 rounded-full font-bold text-sm transition-all shadow-lg hover:shadow-emerald-500/30 active:scale-95 disabled:opacity-50 disabled:active:scale-100 disabled:pointer-events-none">
-                      {loading ? 'Submitting to Blockchain...' : 'Sign & Submit Proposal'}
+                      {loading ? (
+                         <span>
+                           {submitStatus === 'awaiting-signature' && 'Awaiting wallet signature...'}
+                           {submitStatus === 'confirming-tx' && 'Confirming fee (0.01 USDC)...'}
+                           {submitStatus === 'saving-proposal' && 'Saving proposal...'}
+                           {!submitStatus && 'Processing...'}
+                         </span>
+                       ) : 'Sign & Submit Proposal'}
                    </button>
                  )}
                </div>

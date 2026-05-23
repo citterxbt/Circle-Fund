@@ -1,17 +1,36 @@
 import React, { useEffect, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
 import { StatusBadge } from './Dashboard';
 import { Filter } from 'lucide-react';
 
+const USDC_CONTRACT = '0x3600000000000000000000000000000000000000';
+const ADMIN_WALLET = '0x27545eB2be12eAF146CaAB5f2436FC933AfA57a5';
+
+const erc20Abi = [
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    outputs: [{ name: '', type: 'bool' }]
+  }
+] as const;
+
 export function MilestoneTracker() {
   const { address } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
   const [milestones, setMilestones] = useState<any[]>([]);
   const [filter, setFilter] = useState('all'); // all, pending, report_submitted, approved, claimed
   const [selectedMilestone, setSelectedMilestone] = useState<any>(null);
   const [reportContent, setReportContent] = useState('');
   const [loading, setLoading] = useState(false);
+  const [claimStatus, setClaimStatus] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!address) return;
@@ -59,11 +78,59 @@ export function MilestoneTracker() {
 
   const claimFunds = async (ms: any) => {
     try {
-      await supabase.from('milestones').update({ status: 'claimed' }).eq('id', ms.id);
+      setClaimStatus(prev => ({ ...prev, [ms.id]: 'awaiting-signature' }));
+      
+      console.log("[useWriteContract] Sending 0.01 USDC product usage fee to admin on claim:", ADMIN_WALLET);
+      const hash = await writeContractAsync({
+        address: USDC_CONTRACT,
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [ADMIN_WALLET, 10000n], // 0.01 USDC (6 decimals)
+      } as any);
+
+      setClaimStatus(prev => ({ ...prev, [ms.id]: 'confirming-tx' }));
+      
+      if (publicClient) {
+        console.log("[usePublicClient] Waiting for transaction receipt...", hash);
+        await publicClient.waitForTransactionReceipt({ hash });
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 4000));
+      }
+
+      setClaimStatus(prev => ({ ...prev, [ms.id]: 'completing-claim' }));
+      
+      const token = localStorage.getItem('supabase_token');
+      const response = await fetch(`/api/milestones/${ms.id}/claim`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to finalize claim");
+      }
+
+      setClaimStatus(prev => ({ ...prev, [ms.id]: 'success' }));
       loadMilestones();
-      alert(`Successfully simulated claim of ${ms.amount} USDC!`);
+      
+      window.dispatchEvent(new Event("profile_claimed_update"));
+      alert(`Success! 0.01 USDC usage fee paid. Your ${ms.amount} USDC claim has been submitted and Total Claimed Funding updated!`);
     } catch (e: any) {
-      alert(e.message);
+      console.error("Error claiming funds:", e);
+      if (e.message?.includes('rejected') || e.message?.includes('User denied')) {
+        alert('Transaction signature rejected by user.');
+      } else {
+        alert(e.message || 'Payment or claim processing failed. Ensure your wallet has sufficient USDC ARC and native ARC for gas.');
+      }
+    } finally {
+      setClaimStatus(prev => {
+        const updated = { ...prev };
+        delete updated[ms.id];
+        return updated;
+      });
     }
   };
 
@@ -117,8 +184,15 @@ export function MilestoneTracker() {
                   </button>
                 )}
                 {ms.status === 'approved' && (
-                  <button onClick={() => claimFunds(ms)} className="px-4 py-2 bg-white text-black hover:bg-white/80 rounded-lg text-sm transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                    Claim Funds
+                  <button 
+                    disabled={!!claimStatus[ms.id]}
+                    onClick={() => claimFunds(ms)} 
+                    className="px-4 py-2 bg-white text-black hover:bg-white/80 rounded-lg text-sm transition-colors shadow-[0_0_15px_rgba(255,255,255,0.2)] disabled:opacity-50 text-xs font-semibold shrink-0"
+                  >
+                    {claimStatus[ms.id] === 'awaiting-signature' && 'Awaiting Sign...'}
+                    {claimStatus[ms.id] === 'confirming-tx' && 'Confirming (0.01)...'}
+                    {claimStatus[ms.id] === 'completing-claim' && 'Finalizing...'}
+                    {!claimStatus[ms.id] && 'Claim Funds (0.01 USDC)'}
                   </button>
                 )}
               </div>

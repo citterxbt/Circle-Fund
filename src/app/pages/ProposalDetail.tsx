@@ -35,11 +35,45 @@ export function ProposalDetail() {
 
   const castVote = async (type: 'upvote' | 'downvote') => {
     if (!address) return alert("Connect wallet to vote");
+    
+    const userVote = votes.find(v => v.voter_wallet === address?.toLowerCase())?.vote_type;
+    const token = localStorage.getItem('supabase_token');
+
     try {
-      await supabase.from('votes').upsert(
-        { proposal_id: id, voter_wallet: address.toLowerCase(), vote_type: type },
-        { onConflict: 'proposal_id,voter_wallet' }
-      );
+      if (userVote) {
+        if (userVote === type) {
+          // Cancel vote
+          const response = await fetch(`/api/proposals/${id}/vote`, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          const result = await response.json();
+          if (!response.ok) {
+            throw new Error(result.error || "Failed to cancel vote");
+          }
+          alert(`Your ${type} has been successfully canceled.`);
+        } else {
+          // Warning
+          alert(`You have already cast an ${userVote === 'upvote' ? 'upvote' : 'downvote'} on this proposal. Please click the ${userVote === 'upvote' ? 'Thumbs Up' : 'Thumbs Down'} button first to cancel your vote before changing it.`);
+          return;
+        }
+      } else {
+        // Cast vote
+        const response = await fetch(`/api/proposals/${id}/vote`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ vote_type: type })
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to cast vote");
+        }
+      }
       loadAll();
     } catch (e: any) {
       alert(e.message);

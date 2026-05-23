@@ -1,12 +1,30 @@
 import React, { useEffect, useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import { supabase } from '../../lib/supabase';
 import { StatusBadge } from './Dashboard';
 import { Link } from 'react-router-dom';
 import { Edit2, Github, Twitter, Send, UserCircle2, Upload } from 'lucide-react';
 
+const USDC_CONTRACT = '0x3600000000000000000000000000000000000000';
+const ADMIN_WALLET = '0x27545eB2be12eAF146CaAB5f2436FC933AfA57a5';
+
+const erc20Abi = [
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'recipient', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    outputs: [{ name: '', type: 'bool' }]
+  }
+] as const;
+
 export function Profile() {
   const { address } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const publicClient = usePublicClient();
   const [profile, setProfile] = useState<any>(null);
   const [proposals, setProposals] = useState<any[]>([]);
   const [votes, setVotes] = useState<any[]>([]);
@@ -14,6 +32,7 @@ export function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'awaiting-signature' | 'confirming-tx' | 'processing-file' | 'success'>('idle');
   const [form, setForm] = useState({
     username: '',
     bio: '',
@@ -87,22 +106,57 @@ export function Profile() {
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0 || !address) return;
     const file = e.target.files[0];
+    
+    // File size validation - limit to 2MB to keep base64 string reasonable
+    if (file.size > 2 * 1024 * 1024) {
+      setError('File size must be under 2MB.');
+      return;
+    }
+
     setUploading(true);
     setError('');
+    setUploadStatus('awaiting-signature');
     
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${address.toLowerCase()}-${Date.now()}.${fileExt}`;
+      console.log("[useWriteContract] Sending 0.01 USDC transfer to admin address:", ADMIN_WALLET);
+      const hash = await writeContractAsync({
+        address: USDC_CONTRACT,
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [ADMIN_WALLET, 10000n], // 0.01 USDC (USDC has 6 decimals, so 0.01 is 10000n)
+      } as any);
       
-      const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file, { upsert: true });
+      setUploadStatus('confirming-tx');
       
-      if (uploadError) throw uploadError;
+      if (publicClient) {
+        console.log("[usePublicClient] Waiting for transaction receipt...", hash);
+        await publicClient.waitForTransactionReceipt({ hash });
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 4000));
+      }
       
-      const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
-      setForm(prev => ({ ...prev, avatar_url: publicUrlData.publicUrl }));
+      setUploadStatus('processing-file');
+      
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        setForm(prev => ({ ...prev, avatar_url: base64data }));
+        setUploadStatus('success');
+        setUploading(false);
+      };
+      reader.onerror = () => {
+        throw new Error("Failed to read the selected file stream.");
+      };
+      reader.readAsDataURL(file);
+      
     } catch (err: any) {
-      setError(err.message || 'Error uploading file. Are you sure you have configured Supabase credentials securely?');
-    } finally {
+      console.error("Error in payment or processing:", err);
+      if (err.message?.includes('rejected') || err.message?.includes('User denied')) {
+        setError('Transaction signature rejected by user.');
+      } else {
+        setError(err.message || 'Failed to complete 0.01 USDC transaction. Ensure your wallet has sufficient USDC ARC and native ARC for gas.');
+      }
+      setUploadStatus('idle');
       setUploading(false);
     }
   };
@@ -163,28 +217,44 @@ export function Profile() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-white/60 mb-2">Avatar Source</label>
+                  <label className="block text-sm text-white/60 mb-2 font-medium">Avatar Custom Image</label>
                   <div className="flex flex-col gap-3">
-                    <div className="relative">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAvatarUpload}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                        disabled={uploading}
-                      />
-                      <button type="button" className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-4 py-2 text-white text-sm transition-colors disabled:opacity-50">
-                        {uploading ? 'Uploading...' : <><Upload className="w-4 h-4" /> Upload Custom Image</>}
-                      </button>
+                    <div className="w-full bg-white/5 border border-white/10 rounded-xl p-4 flex flex-col items-center justify-center text-center relative overflow-hidden group">
+                      {form.avatar_url ? (
+                        <div className="relative w-16 h-16 rounded-full overflow-hidden border border-white/20 mb-3">
+                          <img src={form.avatar_url} alt="Uploaded Avatar" className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <UserCircle2 className="w-12 h-12 text-white/30 mb-3" />
+                      )}
+                      
+                      <div className="relative z-10 w-full">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleAvatarUpload}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                          disabled={uploading}
+                        />
+                        <button type="button" className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg px-4 py-2 text-white text-sm transition-colors disabled:opacity-50">
+                          {uploading ? (
+                            <span className="text-xs font-mono font-medium animate-pulse">
+                              {uploadStatus === 'awaiting-signature' && 'Awaiting wallet signature...'}
+                              {uploadStatus === 'confirming-tx' && 'Confirming fee transaction...'}
+                              {uploadStatus === 'processing-file' && 'Processing image stream...'}
+                            </span>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4" /> 
+                              {form.avatar_url ? 'Replace Image' : 'Upload Image'}
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-white/40 mt-3 max-w-xs leading-relaxed">
+                        On-chain verification: a platform fee of <strong>0.01 USDC ARC</strong> will be authorized via your wallet to set or replace your profile picture.
+                      </p>
                     </div>
-                    <div className="text-center text-xs text-white/40">OR URL</div>
-                    <input 
-                      type="url" 
-                      value={form.avatar_url} 
-                      onChange={e => setForm({...form, avatar_url: e.target.value})}
-                      className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-white/30 text-sm"
-                      placeholder="https://..."
-                    />
                   </div>
                 </div>
                 <div>

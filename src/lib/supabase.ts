@@ -7,7 +7,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   global: {
     fetch: async (url, options: any = {}) => {
       const token = localStorage.getItem('supabase_token');
-      if (token) {
+      if (token && token !== 'undefined' && token !== 'null' && token.startsWith('eyJ')) {
         // Instantiate/ensure options.headers is structured optimally
         const headers: Record<string, string> = {};
         

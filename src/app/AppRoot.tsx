@@ -105,13 +105,14 @@ const authenticationAdapter = createAuthenticationAdapter({
 
 export default function AppRoot() {
   const [authStatus, setAuthStatus] = React.useState<"loading" | "unauthenticated" | "authenticated">(() => {
-    return localStorage.getItem("supabase_token") ? "authenticated" : "unauthenticated";
+    const token = localStorage.getItem("supabase_token");
+    return (token && token !== "undefined" && token !== "null" && token.startsWith("eyJ")) ? "authenticated" : "unauthenticated";
   });
 
   React.useEffect(() => {
     const checkAuth = () => {
       const token = localStorage.getItem("supabase_token");
-      setAuthStatus(token ? "authenticated" : "unauthenticated");
+      setAuthStatus((token && token !== "undefined" && token !== "null" && token.startsWith("eyJ")) ? "authenticated" : "unauthenticated");
     };
     window.addEventListener("auth_change", checkAuth);
     return () => window.removeEventListener("auth_change", checkAuth);

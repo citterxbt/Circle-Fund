@@ -19,11 +19,39 @@ export function AdminPanel() {
   }, [address, adminWallet]);
 
   async function loadAdminData() {
-    const { data: p } = await supabase.from('proposals').select('*').order('created_at', { ascending: false });
-    if (p) setProposals(p);
+    const token = localStorage.getItem('supabase_token');
+    if (!token) {
+      console.warn("No token found for AdminPanel, cannot fetch authentic admin data.");
+      return;
+    }
 
-    const { data: r } = await supabase.from('milestone_reports').select(`*, milestones(*, proposals(title))`).eq('status', 'pending');
-    if (r) setReports(r);
+    try {
+      const propResponse = await fetch('/api/admin/proposals', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (propResponse.ok) {
+        const result = await propResponse.json();
+        setProposals(result.proposals || []);
+      } else {
+        console.error("Failed to load admin proposals status code:", propResponse.status);
+      }
+
+      const repResponse = await fetch('/api/admin/reports', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (repResponse.ok) {
+        const result = await repResponse.json();
+        setReports(result.reports || []);
+      } else {
+        console.error("Failed to load admin reports status code:", repResponse.status);
+      }
+    } catch (err) {
+      console.error("Error in loadAdminData:", err);
+    }
   }
 
   if (!address || address.toLowerCase() !== adminWallet) {
@@ -31,18 +59,51 @@ export function AdminPanel() {
   }
 
   const updateProposal = async (id: string, status: string) => {
-    await supabase.from('proposals').update({ status }).eq('id', id);
-    loadAdminData();
+    const token = localStorage.getItem('supabase_token');
+    if (!token) return;
+
+    try {
+      const response = await fetch(`/api/admin/proposals/${id}/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+
+      if (response.ok) {
+        loadAdminData();
+      } else {
+        console.error("Failed to update proposal status:", response.status);
+      }
+    } catch (err) {
+      console.error("Error updating proposal:", err);
+    }
   };
 
   const updateReport = async (report: any, status: string) => {
-    await supabase.from('milestone_reports').update({ status }).eq('id', report.id);
-    if (status === 'approved') {
-      await supabase.from('milestones').update({ status: 'approved' }).eq('id', report.milestone_id);
-    } else {
-      await supabase.from('milestones').update({ status: 'rejected' }).eq('id', report.milestone_id);
+    const token = localStorage.getItem('supabase_token');
+    if (!token) return;
+
+    try {
+      const response = await fetch(`/api/admin/reports/${report.id}/status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ status })
+      });
+
+      if (response.ok) {
+        loadAdminData();
+      } else {
+        console.error("Failed to update report status:", response.status);
+      }
+    } catch (err) {
+      console.error("Error updating report:", err);
     }
-    loadAdminData();
   };
 
   return (

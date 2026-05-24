@@ -303,6 +303,122 @@ router.delete("/proposals/:id/vote", async (req, res) => {
   }
 });
 
+// Admin endpoints
+router.get("/admin/proposals", async (req, res) => {
+  const user = authenticateUser(req);
+  if (!user || !user.admin) {
+    return res.status(403).json({ error: "Forbidden: Admin access list required" });
+  }
+
+  try {
+    const adminToken = generateAdminToken();
+    const supabaseAdmin = getSupabaseClient(adminToken);
+    
+    const { data, error } = await supabaseAdmin
+      .from("proposals")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return res.json({ proposals: data || [] });
+  } catch (err: any) {
+    console.error("Error fetching admin proposals:", err);
+    return res.status(500).json({ error: err.message || "Internal Server Error" });
+  }
+});
+
+router.get("/admin/reports", async (req, res) => {
+  const user = authenticateUser(req);
+  if (!user || !user.admin) {
+    return res.status(403).json({ error: "Forbidden: Admin access list required" });
+  }
+
+  try {
+    const adminToken = generateAdminToken();
+    const supabaseAdmin = getSupabaseClient(adminToken);
+
+    const { data, error } = await supabaseAdmin
+      .from("milestone_reports")
+      .select(`*, milestones(*, proposals(title))`)
+      .eq("status", "pending");
+
+    if (error) throw error;
+    return res.json({ reports: data || [] });
+  } catch (err: any) {
+    console.error("Error fetching admin reports:", err);
+    return res.status(500).json({ error: err.message || "Internal Server Error" });
+  }
+});
+
+router.post("/admin/proposals/:id/status", async (req, res) => {
+  const user = authenticateUser(req);
+  if (!user || !user.admin) {
+    return res.status(403).json({ error: "Forbidden: Admin access list required" });
+  }
+
+  const { status } = req.body;
+  if (!["approved", "rejected"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status value" });
+  }
+
+  try {
+    const adminToken = generateAdminToken();
+    const supabaseAdmin = getSupabaseClient(adminToken);
+
+    const { data, error } = await supabaseAdmin
+      .from("proposals")
+      .update({ status })
+      .eq("id", req.params.id)
+      .select();
+
+    if (error) throw error;
+    return res.json({ ok: true, proposal: data?.[0] || null });
+  } catch (err: any) {
+    console.error("Error updating proposal status:", err);
+    return res.status(500).json({ error: err.message || "Internal Server Error" });
+  }
+});
+
+router.post("/admin/reports/:id/status", async (req, res) => {
+  const user = authenticateUser(req);
+  if (!user || !user.admin) {
+    return res.status(403).json({ error: "Forbidden: Admin access list required" });
+  }
+
+  const { status } = req.body;
+  if (!["approved", "rejected"].includes(status)) {
+    return res.status(400).json({ error: "Invalid status value" });
+  }
+
+  try {
+    const adminToken = generateAdminToken();
+    const supabaseAdmin = getSupabaseClient(adminToken);
+
+    // Update report status
+    const { data: updateReportData, error: reportErr } = await supabaseAdmin
+      .from("milestone_reports")
+      .update({ status })
+      .eq("id", req.params.id)
+      .select()
+      .single();
+
+    if (reportErr) throw reportErr;
+
+    // Update milestone status as well
+    const { error: msErr } = await supabaseAdmin
+      .from("milestones")
+      .update({ status: status === "approved" ? "approved" : "rejected" })
+      .eq("id", updateReportData.milestone_id);
+
+    if (msErr) throw msErr;
+
+    return res.json({ ok: true });
+  } catch (err: any) {
+    console.error("Error updating report status:", err);
+    return res.status(500).json({ error: err.message || "Internal Server Error" });
+  }
+});
+
 router.get("/auth/logout", (req, res) => {
   res.json({ ok: true });
 });

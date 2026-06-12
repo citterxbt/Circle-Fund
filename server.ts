@@ -13,12 +13,33 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.run.app"],
+      connectSrc: [
+        "'self'",
+        "https://*.supabase.co",
+        "wss://*.supabase.co",
+        "https://*.run.app",
+        "https://rpc.testnet.arc.network",
+        "https://*.walletconnect.com",
+        "wss://*.walletconnect.com",
+        "https://*.walletconnect.org",
+        "wss://*.walletconnect.org",
+        "https://*.rainbow.me",
+        "https://cloudflare-eth.com"
+      ],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https://*.supabase.co"],
-      frameAncestors: ["'self'", "https://*.run.app", "https://ai.studio", "https://*.google.com"],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "https://*.supabase.co",
+        "https://*.walletconnect.com",
+        "https://*.rainbow.me",
+        "https://safe-transaction-assets.gnosis-safe.io",
+        "https://*.ipfs.dweb.link",
+        "https://ipfs.io"
+      ],
+      frameAncestors: ["'self'", "*"],
     }
   },
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }

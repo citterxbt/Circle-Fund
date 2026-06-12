@@ -8,10 +8,12 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-// Apply security headers
+// Apply security headers (relaxed for Web3 asset and wallet compatibility)
 app.use(helmet({
   contentSecurityPolicy: false,
-  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
+  crossOriginOpenerPolicy: false
 }));
 
 app.use(express.json());

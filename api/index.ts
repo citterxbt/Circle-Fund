@@ -32,10 +32,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// Configure Helmet
+// Configure Helmet (relaxed for Web3 assets and wallet popups)
 app.use(helmet({
   contentSecurityPolicy: false,
-  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: false,
+  crossOriginOpenerPolicy: false
 }));
 
 app.use(express.json());

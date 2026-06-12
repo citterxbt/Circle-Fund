@@ -12,7 +12,6 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@google/genai": "^1.29.0",
     "@hookform/resolvers": "^5.4.0",
     "@rainbow-me/rainbowkit": "^2.2.11",
     "@supabase/supabase-js": "^2.106.1",

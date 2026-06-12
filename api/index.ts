@@ -3,19 +3,76 @@ import helmet from "helmet";
 import { SiweMessage } from "siwe";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import rateLimit from "express-rate-limit";
 
 const app = express();
 const router = express.Router();
 
 app.set("trust proxy", 1);
+
+// Configure dynamic CORS whitelist to prevent wildcard exposure while keeping preview/dev robust
+const allowedOrigins = ["https://circle-fund.vercel.app"];
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    const isLocalhost = origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:");
+    const isCloudRun = origin.endsWith(".run.app") && origin.includes("asia-southeast1") && origin.includes("ais-");
+    
+    if (allowedOrigins.includes(origin) || isLocalhost || isCloudRun) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+      res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.setHeader("Access-Control-Allow-Credentials", "true");
+    }
+  }
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
+// Configure Helmet with dynamic CSP that protects but works cleanly in web sandboxes
 app.use(helmet({
-  contentSecurityPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: ["'self'", "https://*.supabase.co", "wss://*.supabase.co", "https://*.run.app"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https://*.supabase.co"],
+      frameAncestors: ["'self'", "https://*.run.app", "https://ai.studio", "https://*.google.com"],
+    }
+  },
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 }));
+
 app.use(express.json());
 
+// Throttling for authentication attempts (nonce and verify) to prevent bots/bruting
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute window
+  max: 10,             // limit each IP to 10 requests per window
+  message: { error: "Too many authentication requests from this IP. Please try again after 1 minute." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.use("/auth", authLimiter);
+
+// Enforce JWT secret check to avoid fallback in production
+const jwtSecret = process.env.SUPABASE_JWT_SECRET;
+if (!jwtSecret) {
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+    throw new Error("SUPABASE_JWT_SECRET required");
+  } else {
+    console.warn("WARNING: SUPABASE_JWT_SECRET environment variable is missing. Running on default development placeholder.");
+  }
+}
+const secret = jwtSecret || "default_auth_secret_fallback";
+
 function generateStatelessNonce(): string {
-  const secret = process.env.SUPABASE_JWT_SECRET || "default_auth_secret_fallback";
   const now = Math.floor(Date.now() / 1000);
   const timestampHex = now.toString(16).padStart(8, "0"); // 8 chars hex
   const randHex = crypto.randomBytes(4).toString("hex"); // 8 chars hex
@@ -30,7 +87,6 @@ function generateStatelessNonce(): string {
 function verifyStatelessNonce(nonce: string): boolean {
   if (!nonce || nonce.length !== 32) return false;
   
-  const secret = process.env.SUPABASE_JWT_SECRET || "default_auth_secret_fallback";
   const timestampHex = nonce.slice(0, 8);
   const randHex = nonce.slice(8, 16);
   const sigHex = nonce.slice(16, 32);
@@ -63,7 +119,7 @@ router.get("/auth/nonce", (req, res) => {
     res.json({ nonce });
   } catch (error: any) {
     console.error("Error generating nonce:", error);
-    res.status(500).json({ error: error.message || "Internal Server Error" });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -79,15 +135,14 @@ router.post("/auth/verify", async (req, res) => {
     
     const { success, data } = await siweMessage.verify({ signature });
     if (success && data) {
-      const secret = process.env.SUPABASE_JWT_SECRET;
-      if (!secret) return res.status(500).json({ error: "Missing SUPABASE_JWT_SECRET environment variable." });
+      const allowedAdminWallet = (process.env.ADMIN_WALLET || process.env.VITE_ADMIN_WALLET || "").toLowerCase();
       
       const payload = {
         role: "authenticated",
         aud: "authenticated",
         sub: data.address.toLowerCase(),
         wallet_address: data.address.toLowerCase(),
-        admin: data.address.toLowerCase() === (process.env.VITE_ADMIN_WALLET || "").toLowerCase(),
+        admin: allowedAdminWallet !== "" && data.address.toLowerCase() === allowedAdminWallet,
         exp: Math.floor(Date.now() / 1000) + (60 * 60 * 24)
       };
       
@@ -109,7 +164,8 @@ router.post("/auth/verify", async (req, res) => {
        return res.status(401).json({ error: "Invalid signature." });
     }
   } catch (e: any) {
-    res.status(400).json({ error: e.message });
+    console.error("Error verification:", e);
+    res.status(400).json({ error: "Invalid request parameters." });
   }
 });
 
@@ -121,7 +177,6 @@ function authenticateUser(req: any): { wallet_address: string; admin: boolean } 
   }
   const token = authHeader.split(" ")[1];
   try {
-    const secret = process.env.SUPABASE_JWT_SECRET || "default_auth_secret_fallback";
     const decoded = jwt.verify(token, secret) as any;
     return {
       wallet_address: decoded.wallet_address,
@@ -135,7 +190,6 @@ function authenticateUser(req: any): { wallet_address: string; admin: boolean } 
 
 // Generate admin token using service_role to bypass Row-Level Security
 function generateAdminToken(): string {
-  const secret = process.env.SUPABASE_JWT_SECRET || "default_auth_secret_fallback";
   const payload = {
     role: "service_role",
     aud: "authenticated",
@@ -219,7 +273,7 @@ router.post("/milestones/:id/claim", async (req, res) => {
     return res.json({ ok: true, milestone: data[0], total_claimed: prof?.total_claimed || 0 });
   } catch (err: any) {
     console.error("Error during claim processing:", err);
-    return res.status(500).json({ error: err.message || "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -271,7 +325,7 @@ router.post("/proposals/:id/vote", async (req, res) => {
     return res.json({ ok: true });
   } catch (err: any) {
     console.error("Error casting vote:", err);
-    return res.status(500).json({ error: err.message || "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -299,7 +353,7 @@ router.delete("/proposals/:id/vote", async (req, res) => {
     return res.json({ ok: true });
   } catch (err: any) {
     console.error("Error canceling vote:", err);
-    return res.status(500).json({ error: err.message || "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -323,7 +377,7 @@ router.get("/admin/proposals", async (req, res) => {
     return res.json({ proposals: data || [] });
   } catch (err: any) {
     console.error("Error fetching admin proposals:", err);
-    return res.status(500).json({ error: err.message || "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -346,7 +400,7 @@ router.get("/admin/reports", async (req, res) => {
     return res.json({ reports: data || [] });
   } catch (err: any) {
     console.error("Error fetching admin reports:", err);
-    return res.status(500).json({ error: err.message || "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -375,7 +429,7 @@ router.post("/admin/proposals/:id/status", async (req, res) => {
     return res.json({ ok: true, proposal: data?.[0] || null });
   } catch (err: any) {
     console.error("Error updating proposal status:", err);
-    return res.status(500).json({ error: err.message || "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
@@ -415,7 +469,7 @@ router.post("/admin/reports/:id/status", async (req, res) => {
     return res.json({ ok: true });
   } catch (err: any) {
     console.error("Error updating report status:", err);
-    return res.status(500).json({ error: err.message || "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 });
 

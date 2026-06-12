@@ -1,22 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { useAccount } from 'wagmi';
 import { Navigate } from 'react-router-dom';
-import { supabase } from '../../lib/supabase';
+import { supabase, isUserAdmin } from '../../lib/supabase';
 import { StatusBadge } from './Dashboard';
 import { format } from 'date-fns';
 
 export function AdminPanel() {
   const { address } = useAccount();
-  const adminWallet = import.meta.env.VITE_ADMIN_WALLET?.toLowerCase();
+  const isAdmin = isUserAdmin();
   
   const [proposals, setProposals] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
 
   useEffect(() => {
-    if (address?.toLowerCase() === adminWallet) {
+    if (isAdmin) {
       loadAdminData();
     }
-  }, [address, adminWallet]);
+  }, [address, isAdmin]);
+
+  if (!isAdmin) {
+    return <Navigate to="/app/profile" replace />;
+  }
 
   async function loadAdminData() {
     const token = localStorage.getItem('supabase_token');
@@ -52,10 +56,6 @@ export function AdminPanel() {
     } catch (err) {
       console.error("Error in loadAdminData:", err);
     }
-  }
-
-  if (!address || address.toLowerCase() !== adminWallet) {
-    return <Navigate to="/app/profile" replace />;
   }
 
   const updateProposal = async (id: string, status: string) => {

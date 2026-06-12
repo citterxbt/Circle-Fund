@@ -1,14 +1,26 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { FileText, CheckSquare, UserCircle, Settings, Home } from 'lucide-react';
 import { useAccount } from 'wagmi';
+import { isUserAdmin } from '../../lib/supabase';
 
 export function Layout() {
   const { address } = useAccount();
   const location = useLocation();
-  const adminWallet = import.meta.env.VITE_ADMIN_WALLET?.toLowerCase();
-  const isAdmin = address && adminWallet && address.toLowerCase() === adminWallet;
+  const [isAdmin, setIsAdmin] = useState(isUserAdmin());
+
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setIsAdmin(isUserAdmin());
+    };
+    window.addEventListener('auth_change', handleAuthChange);
+    // Also update on connection/address changes
+    setIsAdmin(isUserAdmin());
+    return () => {
+      window.removeEventListener('auth_change', handleAuthChange);
+    };
+  }, [address]);
 
   const navItems = [
     { label: 'Explore Proposals', path: '/app/proposals', icon: <Home className="w-4 h-4" /> },

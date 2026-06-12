@@ -36,3 +36,29 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     },
   },
 });
+
+export function isUserAdmin(): boolean {
+  try {
+    const token = localStorage.getItem('supabase_token');
+    if (!token || token === 'undefined' || token === 'null' || !token.startsWith('eyJ')) {
+      return false;
+    }
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      window
+        .atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    const payload = JSON.parse(jsonPayload);
+    return !!payload.admin;
+  } catch (error) {
+    console.error('Error decoding JWT token:', error);
+    return false;
+  }
+}
+

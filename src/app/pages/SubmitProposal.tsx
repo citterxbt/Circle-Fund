@@ -6,7 +6,7 @@ import { Plus, Trash2, AlertCircle, ArrowRight, ArrowLeft, CheckCircle2 } from '
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const USDC_CONTRACT = '0x3600000000000000000000000000000000000000';
 const ADMIN_WALLET = '0x27545eB2be12eAF146CaAB5f2436FC933AfA57a5';

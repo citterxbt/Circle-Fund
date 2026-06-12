@@ -8,40 +8,9 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-// Apply security headers with dynamic CSP that protects but works cleanly in web sandboxes
+// Apply security headers
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      connectSrc: [
-        "'self'",
-        "https://*.supabase.co",
-        "wss://*.supabase.co",
-        "https://*.run.app",
-        "https://rpc.testnet.arc.network",
-        "https://*.walletconnect.com",
-        "wss://*.walletconnect.com",
-        "https://*.walletconnect.org",
-        "wss://*.walletconnect.org",
-        "https://*.rainbow.me",
-        "https://cloudflare-eth.com"
-      ],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: [
-        "'self'",
-        "data:",
-        "https://*.supabase.co",
-        "https://*.walletconnect.com",
-        "https://*.rainbow.me",
-        "https://safe-transaction-assets.gnosis-safe.io",
-        "https://*.ipfs.dweb.link",
-        "https://ipfs.io"
-      ],
-      frameAncestors: ["'self'", "*"],
-    }
-  },
+  contentSecurityPolicy: false,
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 }));
 

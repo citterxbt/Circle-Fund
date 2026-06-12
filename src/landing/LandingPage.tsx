@@ -6,7 +6,7 @@ import { KeyFeatures } from './sections/KeyFeatures';
 import { Benefits } from './sections/Benefits';
 import { FAQ, CTASection } from './sections/Combined';
 import { ChevronUp } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function LandingPage() {
   const [showBackToTop, setShowBackToTop] = useState(false);

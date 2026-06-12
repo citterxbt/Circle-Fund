@@ -17,9 +17,8 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   if (origin) {
     const isLocalhost = origin.startsWith("http://localhost:") || origin.startsWith("http://127.0.0.1:");
-    const isCloudRun = origin.endsWith(".run.app") && origin.includes("asia-southeast1") && origin.includes("ais-");
     
-    if (allowedOrigins.includes(origin) || isLocalhost || isCloudRun) {
+    if (allowedOrigins.includes(origin) || isLocalhost) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
@@ -31,14 +30,6 @@ app.use((req, res, next) => {
   }
   next();
 });
-
-// Configure Helmet (relaxed for Web3 assets and wallet popups)
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: false,
-  crossOriginOpenerPolicy: false
-}));
 
 app.use(express.json());
 
@@ -53,16 +44,22 @@ const authLimiter = rateLimit({
 
 router.use("/auth", authLimiter);
 
+// Global rate limiter for all API endpoints
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  message: { error: "Too many requests. Please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+router.use(globalLimiter);
+
 // Enforce JWT secret check to avoid fallback in production
 const jwtSecret = process.env.SUPABASE_JWT_SECRET;
 if (!jwtSecret) {
-  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
-    throw new Error("SUPABASE_JWT_SECRET required");
-  } else {
-    console.warn("WARNING: SUPABASE_JWT_SECRET environment variable is missing. Running on default development placeholder.");
-  }
+  console.warn("[Auth] SUPABASE_JWT_SECRET not set — auth endpoints will fail.");
 }
-const secret = jwtSecret || "default_auth_secret_fallback";
+const secret = jwtSecret || "";
 
 function generateStatelessNonce(): string {
   const now = Math.floor(Date.now() / 1000);
@@ -127,7 +124,7 @@ router.post("/auth/verify", async (req, res) => {
     
     const { success, data } = await siweMessage.verify({ signature });
     if (success && data) {
-      const allowedAdminWallet = (process.env.ADMIN_WALLET || process.env.VITE_ADMIN_WALLET || "").toLowerCase();
+      const allowedAdminWallet = (process.env.ADMIN_WALLET || "").toLowerCase();
       
       const payload = {
         role: "authenticated",
